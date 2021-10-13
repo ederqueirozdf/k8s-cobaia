@@ -20,7 +20,7 @@ global:
 
 ## @param kubeVersion Force target Kubernetes version (using Helm capabilities if not set)
 ##
-kubeVersion: ""
+kubeVersion: "v1.21.3"
 ## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
 ##
 nameOverride: ""
@@ -1897,7 +1897,7 @@ storegateway:
 ruler:
   ## @param ruler.enabled Enable/disable Thanos Ruler component
   ##
-  enabled: false
+  enabled: true
 
   queries: 
   - "dnssrv+_grpc._tcp.k8s-cobaia-thanos-query.cobaia-thanos.svc.cluster.local"
