@@ -133,8 +133,8 @@ query:
   #  - "dnssrv+_grpc._tcp.k8s-cobaia-prometheus-master-0-server.prometheus-master-0.svc.cluster.local"
 
   # thanos-rule
-   - "dnssrv+_grpc._tcp.k8s-cobaia-thanos-infra-ruler.thanos.svc.cluster.local"
-   - "dnssrv+_grpc._tcp.k8s-cobaia-thanos-infra-storegateway.thanos.svc.cluster.local"  
+   - "dnssrv+_grpc._tcp.k8s-cobaia-thanos-infra-ruler.cobaia-thanos.svc.cluster.local"
+   - "dnssrv+_grpc._tcp.k8s-cobaia-thanos-infra-storegateway.cobaia-thanos.svc.cluster.local"  
   ## @param query.sdConfig Query Service Discovery Configuration
   ## Specify content for servicediscovery.yml
   ##
@@ -1900,7 +1900,7 @@ ruler:
   enabled: true
 
   queries: 
-  - "dnssrv+_grpc._tcp.k8s-cobaia-thanos-query.thanos.svc.cluster.local"
+  - "dnssrv+_grpc._tcp.k8s-cobaia-thanos-query.cobaia-thanos.svc.cluster.local"
 
   ## @param ruler.logLevel Thanos Ruler log level
   ##
