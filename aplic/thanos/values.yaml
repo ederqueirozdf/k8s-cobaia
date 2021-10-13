@@ -2819,15 +2819,15 @@ minio:
   ## @param minio.enabled Enable/disable MinIO&reg; chart installation
   ## to be used as an objstore for Thanos
   ##
-  enabled: true
+  enabled: false
   ## MinIO&reg; credentials
   ## @param minio.accessKey.password MinIO&reg; Access Key
   ## @param minio.secretKey.password MinIO&reg; Secret Key
   ##
   accessKey:
-    password: "BKIKJAA5BMMU2RHO6IBB"
+    password: ""
   secretKey:
-    password: "V7f1CwQqAcwo80UEIJEjc5gVQUSSx5ohQ9GSrr12"
+    password: ""
   ## @param minio.defaultBuckets Comma, semi-colon or space separated list of MinIO&reg; buckets to create
   ##
   defaultBuckets: 'thanos'
