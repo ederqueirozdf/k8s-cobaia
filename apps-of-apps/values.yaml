@@ -1,7 +1,7 @@
 clusterK8s:
   name: "k8s-cobaia"
   server: https://kubernetes.default.svc
-  source: https://github.com/ederqueirozdf/lab-apps2.git
+  source: https://github.com/ederqueirozdf/k8s-cobaia.git
   extraApi: 
     - namespace: "*"
       server: https://kubernetes.default.svc  
@@ -26,11 +26,11 @@ argocd:
       spec:
         project: k8s-cobaia
         source:
-          path: guestbook
-          repoURL: https://github.com/ederqueirozdf/lab-apps.git
+          path: aplic/guestbook
+          repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
           targetRevision: HEAD     
         destination:
-          namespace: guestbook
+          namespace: cobaia-guestbook
           server: https://kubernetes.default.svc
         syncPolicy:
           automated:
@@ -52,11 +52,11 @@ argocd:
       spec:
         project: k8s-cobaia
         source:
-          path: thanos
-          repoURL: https://github.com/ederqueirozdf/lab-apps.git
+          path: aplic/thanos
+          repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
           targetRevision: HEAD 
         destination:
-          namespace: thanos
+          namespace: cobaia-thanos
           server: https://kubernetes.default.svc
         syncPolicy:
           automated:

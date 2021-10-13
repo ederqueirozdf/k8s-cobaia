@@ -29,5 +29,5 @@ variable "instance_type" {
 
 variable "repo" {
   description = "Repository of the infra and apps"
-  default     = "https://github.com/ederqueirozdf/lab-apps.git"
+  default     = "https://github.com/ederqueirozdf/k8s-cobaia.git"
 }
