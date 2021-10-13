@@ -300,6 +300,9 @@ gcsgateway:
 ## Use minio on NAS backend
 ## https://docs.minio.io/docs/minio-gateway-for-nas
 
+pvc:
+  annotations: {}
+
 nasgateway:
   enabled: false
   # Number of parallel instances
