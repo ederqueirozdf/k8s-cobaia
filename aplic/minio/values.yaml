@@ -99,14 +99,14 @@ bucketRoot: ""
 # Number of drives attached to a node
 drivesPerNode: 1
 # Number of MinIO containers running
-replicas: 16
+replicas: 3
 # Number of expanded MinIO clusters
 pools: 1
 
 # Deploy if 'mode == gateway' - 4 replicas.
 gateway:
   type: "nas" # currently only "nas" is supported.
-  replicas: 4
+  replicas: 2
 
 ## TLS Settings for MinIO
 tls:
