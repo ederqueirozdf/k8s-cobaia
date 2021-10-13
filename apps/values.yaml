@@ -1,0 +1,64 @@
+clusterK8s:
+  name: "k8s-cobaia"
+  server: https://kubernetes.default.svc
+  source: https://github.com/ederqueirozdf/lab-apps2.git
+  extraApi: 
+    - namespace: "*"
+      server: https://kubernetes.default.svc  
+
+argocd:
+  namespace: argocd
+  disablePrune: false
+
+# #####################################################################
+# APPS
+# #####################################################################
+
+  apps:
+    - name: "guestbook"
+      finalizers: []
+      labels: []
+        # - key: chave
+        #   value: valor
+      annotations: []
+        # - key: chave
+        #   value: valor
+      spec:
+        project: k8s-cobaia
+        source:
+          path: guestbook
+          repoURL: https://github.com/ederqueirozdf/lab-apps.git
+          targetRevision: HEAD     
+        destination:
+          namespace: guestbook
+          server: https://kubernetes.default.svc
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+
+# #####################################################################
+# MONITOR
+# #####################################################################
+
+    - name: "thanos"
+      finalizers: []
+      labels: []
+        # - key: chave
+        #   value: valor
+      annotations: []
+        # - key: chave
+        #   value: valor
+      spec:
+        project: k8s-cobaia
+        source:
+          path: thanos
+          repoURL: https://github.com/ederqueirozdf/lab-apps.git
+          targetRevision: HEAD 
+        destination:
+          namespace: thanos
+          server: https://kubernetes.default.svc
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true

@@ -1,0 +1,247 @@
+apiVersion: v1
+data:
+  alerting_rules.yaml: |
+    groups:
+
+    # -------------------------------------------------------------------------------------------------------------------------------------------
+    # Alarmes Severidade Crítica - Geram incidentes na CGTI
+    # -------------------------------------------------------------------------------------------------------------------------------------------
+
+    - name: Alertas Severidade Critica com abertura de incidente na CGTI
+      rules:
+
+      - alert: Elevada latência no API Server do Kubernetes
+        annotations:
+          clusterName: "{{ $labels.prometheus_group }}"
+          message: "Elevada latência no API Server do Kubernetes detectado no cluster {{ $labels.prometheus_group }} ."
+          runbook_url: https://github.com/ederqueirozdf/lab-apps/docs/008-alarme_latencia-api-k8s.md
+        expr: |-
+          cluster_quantile:apiserver_request_duration_seconds:histogram_quantile{resource="pods", verb="read"}
+            >
+          10
+        for: 60m
+        labels:
+          omi: sim
+          severity: critical
+          sigla: TI
+          type: nuvem
+
+      - alert: Certificado Ingress Controler vencido
+        annotations:
+          clusterName: "{{ $labels.prometheus_group }} aplicação: {{ $labels.host }}"
+          message: "Certificado Ingress Controler vencido. Aplicação: {{ $labels.host }}. Cluster: {{ $labels.prometheus_group }}."
+          runbook_url: https://github.com/ederqueirozdf/lab-apps/docs/002-alarme_vencimento-certificado-ingress.md
+        expr: '(nginx_ingress_controller_ssl_expire_time_seconds - time ()) / 86400 < 1'
+        for: 30m
+        labels:
+          omi: sim
+          severity: critical
+          sigla: TI
+          type: nuvem
+
+      - alert: Elevada taxa de erros 504 nginx_ingress Kubernetes
+        annotations:
+          clusterName: "{{ $labels.prometheus_group }}"
+          message: "Elevada taxa de erro 504 em ingress controller detectado no cluster {{ $labels.prometheus_group }}, controller_namespace  {{ $labels.controller_namespace }} , pod {{ $labels.controller_pod }} ."
+          runbook_url: https://github.com/ederqueirozdf/lab-apps/docs/009-alarme_ingress-controller-504-k8s.md
+        expr: |-
+          (sum(rate(nginx_ingress_controller_requests{status="504",ingress=~"prd.*"}[2m])) by (controller_pod,prometheus_group,controller_namespace,prometheus) / sum(rate(nginx_ingress_controller_requests{status=~".*",ingress=~"prd.*"}[2m])) by (controller_pod,prometheus_group,controller_namespace,prometheus)) * 100
+            >
+          5
+        for: 2m
+        labels:
+          omi: sim
+          severity: critical
+          sigla: TI
+          type: nuvem
+
+      - alert: Aumento subito da taxa de erros 504 nginx_ingress Kubernetes por ingress
+        annotations:
+          clusterName: "{{ $labels.prometheus_group }}"
+          message: "Aumento súbito da taxa de erro 504 em ingress controller detectado no cluster {{ $labels.prometheus_group }}, controller_namespace  {{ $labels.controller_namespace }} , pod {{ $labels.controller_pod }} ."
+          runbook_url: https://github.com/ederqueirozdf/lab-apps/docs/010-alarme_ingress-controller-504-_subito_por_ingress_k8s.md
+        expr: |-
+          (
+              (
+              (
+                  (sum(rate(nginx_ingress_controller_requests{status="504",ingress=~"prd.*",controller_pod=~".*"}[2m])) by (controller_pod,prometheus_group,controller_namespace,prometheus,ingress))
+                  -
+                  (sum(rate(nginx_ingress_controller_requests{status="504",ingress=~"prd.*",controller_pod=~".*"}[2m] offset 2m )) by (controller_pod,prometheus_group,controller_namespace,prometheus,ingress))
+              ) > 1
+              /
+              (sum(rate(nginx_ingress_controller_requests{status="504",ingress=~"prd.*",controller_pod=~".*"}[2m] offset 2m )) by (controller_pod,prometheus_group,controller_namespace,prometheus,ingress))
+          )
+          ) * 100 > 99
+        for: 2m
+        labels:
+          omi: sim
+          severity: critical
+          sigla: TI
+          type: nuvem
+
+    # -------------------------------------------------------------------------------------------------------------------------------------------
+    # Alarmes Severidade Major - Geram alarmes no painel da CGTI
+    # -------------------------------------------------------------------------------------------------------------------------------------------
+
+    - name: Alertas Severidade Major com geração de Alarme no painel da CGTI
+      rules:
+
+      - alert: Kubernetes Node com status NotReady por mais de  30m.
+        annotations:
+          clusterName: "{{ $labels.prometheus_group }} node: {{ $labels.hostname }}"
+          message: "Node {{ $labels.hostname }} do cluster {{ $labels.prometheus_group }} com status: NotReady."
+          runbook_url: https://github.com/ederqueirozdf/lab-apps/docs/001-alarme_node-notready.md
+        expr: 'sum by (hostname,prometheus_group,prometheus) (kube_node_status_condition{condition="Ready",status="true"} == 0)'
+        for: 60m
+        labels:
+          omi: sim
+          severity: major
+          sigla: TI
+          type: nuvem
+
+      - alert: Certificado Ingress Controler com vencimento inferior a 30 dias
+        annotations:
+          clusterName: "{{ $labels.prometheus_group }} aplicação: {{ $labels.host }} "
+          message: "Certificado Ingress Controler com vencimento inferior a 30 dias. Aplicação: {{ $labels.host }}. Namespace: {{ $labels.namespace }}. Cluster: {{ $labels.prometheus_group }}."
+          runbook_url: https://github.com/ederqueirozdf/lab-apps/docs/002-alarme_vencimento-certificado-ingress.md
+        expr: 'nginx_ingress_controller_ssl_expire_time_seconds:cluster:namespace < 30'
+        for: 30m
+        labels:
+          omi: sim
+          severity: major
+          sigla: TI
+          type: nuvem
+
+      - alert: Kubernetes Node - Servidor com consumo de CPU acima de 90%
+        annotations:
+          clusterName: "{{ $labels.prometheus_group }} node: {{ $labels.hostname }}"
+          message: 'O servidor {{ $labels.hostname }} está com utilização de CPU acima de 90% por mais de 30 minutos.'
+          runbook_url: https://github.com/ederqueirozdf/lab-apps/docs/006-alarme_consumo-cpu.md
+        expr: |-
+          node:HighCpuLoad > 90
+        for: 60m
+        labels:
+          omi: sim
+          severity: major
+          sigla: TI
+          type: nuvem
+
+      - alert: Kubernetes Node - Servidor com consumo de memória acima de 90%
+        annotations:
+          clusterName: "{{ $labels.prometheus_group }} node: {{ $labels.hostname }}"
+          message: 'O servidor {{ $labels.hostname }} está com utilização de Memória RAM acima de 90%.'
+          runbook_url: https://github.com/ederqueirozdf/lab-apps/docs/007-alarme_consumo-memoria.md
+        expr: |-
+          node:node_memory_utilization:ratio
+            >
+          0.90
+        for: 60m
+        labels:
+          omi: sim
+          severity: major
+          sigla: TI
+          type: nuvem
+
+    # -------------------------------------------------------------------------------------------------------------------------------------------
+    # Alarmes não enviados para CGTI (Apresentados apenas no Alertmanager e Alertas)
+    # -------------------------------------------------------------------------------------------------------------------------------------------
+
+    - name: Alarmes Internos INFRA
+      rules:
+
+      - alert: Kubernetes Node - Servidor com consumo de inodes acima de 85%.
+        annotations:
+          clusterName: "{{ $labels.prometheus_group }} node: {{ $labels.hostname }}"
+          message: 'O servidor {{ $labels.hostname }} está com consumo de inodes acima de 85% no filesystem {{ $labels.mountpoint }}'
+          runbook_url: https://github.com/ederqueirozdf/lab-apps/docs/004-alarme_consumo-inodes.md
+        expr: |-
+          node:inodes_use
+            >
+          85
+          and
+          node:inodes_use
+            <
+          90
+        for: 1m
+        labels:
+          omi: nao
+          severity: major
+          sigla: TI
+          type: nuvem
+
+      - alert: Kubernetes Node - Servidor com utilização de filesystem acima de 88%.
+        annotations:
+          clusterName: "{{ $labels.prometheus_group }} node: {{ $labels.hostname }}"
+          message: 'O filesystem {{ $labels.mountpoint }} da VM {{ $labels.hostname }} está com utilização acima de 88%.'
+          runbook_url: https://github.com/ederqueirozdf/lab-apps/docs/005-alarme_consumo-filesystem.md
+        expr: |-
+          node:node_filesystem_usage2 {fstype=~"ext[234]|btrfs|xfs|zfs"}
+            >
+          88
+          and
+          node:node_filesystem_usage2 {fstype=~"ext[234]|btrfs|xfs|zfs"}
+            <
+          90
+        for: 60m
+        labels:
+          omi: nao
+          severity: major
+          sigla: TI
+          type: nuvem
+          environment: Production
+          service: node-exporter
+
+  recording_rules.yaml: |
+    groups:
+
+    # -------------------------------------------------------------------------------------------------------------------------------------------
+    # Recording Rules
+    # -------------------------------------------------------------------------------------------------------------------------------------------
+
+    - name: infra.indicadores.rules
+      rules:
+
+      - expr: |-
+          container_cpu_usage_seconds_total:cluster / kube_pod_container_resource_requests_cpu_cores:kube_pod_status_phase:node_papel:cluster
+        record: indicador_eficiencia_apps_cluster:cluster
+
+      - expr: |-
+          kube_node_spec_unschedulable{prometheus_replica!~"prometheus-kubelet.*"} * on(hostname,prometheus_group) (node_time_seconds{prometheus_replica!~"prometheus-kubelet.*"} - node_boot_time_seconds{prometheus_replica!~"prometheus-kubelet.*"}) > 0
+        record: uptime:kube_node_spec_unschedulable
+
+      - expr: |-
+          avg by (host,namespace,sigla,prometheus_group,prometheus) 
+              (
+                nginx_ingress_controller_request_size_sum{host=~".*",namespace!=""}
+              ) 
+              * on (host) group_left() 
+              (
+                (avg(nginx_ingress_controller_ssl_expire_time_seconds{host=~".*"} - time()) by (host) /86400)
+              ) 
+              / 
+              (
+                avg by (host,namespace,sigla,prometheus_group,prometheus)(nginx_ingress_controller_request_size_sum{host=~".*",namespace!=""})
+              )
+        record: nginx_ingress_controller_ssl_expire_time_seconds:cluster:namespace
+
+      - expr: |-
+          problem_counter
+          * on(hostname,prometheus_group) 
+          group_left(container_runtime_version,kernel_version,kubelet_version,kubeproxy_version,os_image,pod_cidr) 
+          kube_node_info
+        record: problem_counter:kube_node_info
+      - expr: |-
+          problem_gauge
+          * on(hostname,prometheus_group) 
+          group_left(container_runtime_version,kernel_version,kubelet_version,kubeproxy_version,os_image,pod_cidr) 
+          kube_node_info
+        record: problem_gauge:kube_node_info
+
+
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/component: rule
+    app.kubernetes.io/name: thanos
+  name: thanos-lab-rules
+  namespace: thanos
