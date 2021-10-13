@@ -14,7 +14,7 @@ connectToMinio() {
   SCHEME=$1
   ATTEMPTS=0 ; LIMIT=29 ; # Allow 30 attempts
   set -e ; # fail if we can't read the keys.
-  ACCESS=$(cat /config/accesskey) ; SECRET=$(cat /config/secretkey) ;
+  ACCESS=$(cat /config/rootUser) ; SECRET=$(cat /config/rootPassword) ;
   set +e ; # The connections to minio are allowed to fail.
   echo "Connecting to Minio server: $SCHEME://$MINIO_ENDPOINT:$MINIO_PORT" ;
   MC_COMMAND="${MC} config host add myminio $SCHEME://$MINIO_ENDPOINT:$MINIO_PORT $ACCESS $SECRET" ;
@@ -100,10 +100,7 @@ scheme=http
 {{- end }}
 connectToMinio $scheme
 
-{{- if or .Values.defaultBucket.enabled }}
-# Create the bucket
-createBucket {{ .Values.defaultBucket.name }} {{ .Values.defaultBucket.policy }} {{ .Values.defaultBucket.purge }} {{ .Values.defaultBucket.versioning }}
-{{ else if .Values.buckets }}
+{{ if .Values.buckets }}
 # Create the buckets
 {{- range .Values.buckets }}
 createBucket {{ .name }} {{ .policy }} {{ .purge }} {{ .versioning }}

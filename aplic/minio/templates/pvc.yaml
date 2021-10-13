@@ -4,21 +4,13 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ template "minio.fullname" . }}
-  {{- with .Values.pvc.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  namespace: {{ .Release.Namespace | quote }}
   labels:
     app: {{ template "minio.name" . }}
     chart: {{ template "minio.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
-{{- if and .Values.nasgateway.enabled .Values.nasgateway.pv }}
-  selector:
-    matchLabels:
-      pv: {{ .Values.nasgateway.pv | quote }}
-{{- end }}
   accessModes:
     - {{ .Values.persistence.accessMode | quote }}
   resources:

@@ -1,5 +1,5 @@
 {{- if eq .Values.mode "distributed" }}
-{{ $zoneCount := .Values.zones | int }}
+{{ $poolCount := .Values.pools | int }}
 {{ $nodeCount := .Values.replicas | int }}
 {{ $drivesPerNode := .Values.drivesPerNode | int }}
 {{ $scheme := "http" }}
@@ -17,6 +17,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ template "minio.fullname" . }}-svc
+  namespace: {{ .Release.Namespace | quote }}
   labels:
     app: {{ template "minio.name" . }}
     chart: {{ template "minio.chart" . }}
@@ -54,7 +55,7 @@ spec:
     type: {{ .Values.StatefulSetUpdate.updateStrategy }}
   podManagementPolicy: "Parallel"
   serviceName: {{ template "minio.fullname" . }}-svc
-  replicas: {{ mul $zoneCount $nodeCount }}
+  replicas: {{ mul $poolCount $nodeCount }}
   selector:
     matchLabels:
       app: {{ template "minio.name" . }}
@@ -78,7 +79,6 @@ spec:
       {{- if .Values.priorityClassName }}
       priorityClassName: "{{ .Values.priorityClassName }}"
       {{- end }}
-      serviceAccountName: {{ include "minio.serviceAccountName" . | quote }}
 {{- if and .Values.securityContext.enabled .Values.persistence.enabled }}
       securityContext:
         runAsUser: {{ .Values.securityContext.runAsUser }}
@@ -92,7 +92,7 @@ spec:
 
           command: [ "/bin/sh",
             "-ce",
-            "/usr/bin/docker-entrypoint.sh minio -S {{ .Values.certsPath }} server {{- range $i := until $zoneCount }}{{ $factor := mul $i $nodeCount }}{{ $endIndex := add $factor $nodeCount }}{{ $beginIndex := mul $i $nodeCount }}  {{ $scheme }}://{{ template `minio.fullname` $ }}-{{ `{` }}{{ $beginIndex }}...{{ sub $endIndex 1 }}{{ `}`}}.{{ template `minio.fullname` $ }}-svc.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}{{if (gt $drivesPerNode 1)}}{{ $bucketRoot }}-{{ `{` }}0...{{ sub $drivesPerNode 1 }}{{ `}` }}{{else}}{{ $bucketRoot }}{{end}}{{- end}}{{- template `minio.extraArgs` . }}" ]
+            "/usr/bin/docker-entrypoint.sh minio server {{- range $i := until $poolCount }}{{ $factor := mul $i $nodeCount }}{{ $endIndex := add $factor $nodeCount }}{{ $beginIndex := mul $i $nodeCount }}  {{ $scheme }}://{{ template `minio.fullname` $ }}-{{ `{` }}{{ $beginIndex }}...{{ sub $endIndex 1 }}{{ `}`}}.{{ template `minio.fullname` $ }}-svc.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}{{if (gt $drivesPerNode 1)}}{{ $bucketRoot }}-{{ `{` }}0...{{ sub $drivesPerNode 1 }}{{ `}` }}{{else}}{{ $bucketRoot }}{{end}}{{- end}} -S {{ .Values.certsPath }} --address :{{ .Values.minioAPIPort }} --console-address :{{ .Values.minioConsolePort }} {{- template `minio.extraArgs` . }}" ]
           volumeMounts:
             {{- if $penabled }}
             {{- if (gt $drivesPerNode 1) }}
@@ -114,18 +114,24 @@ spec:
             {{- include "minio.tlsKeysVolumeMount" . | indent 12 }}
           ports:
             - name: {{ $scheme }}
-              containerPort: 9000
+              containerPort: {{ .Values.minioAPIPort }}
+            - name: {{ $scheme }}-console
+              containerPort: {{ .Values.minioConsolePort }}
           env:
-            - name: MINIO_ACCESS_KEY
+            - name: MINIO_ROOT_USER
               valueFrom:
                 secretKeyRef:
                   name: {{ template "minio.secretName" . }}
-                  key: accesskey
-            - name: MINIO_SECRET_KEY
+                  key: rootUser
+            - name: MINIO_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ template "minio.secretName" . }}
-                  key: secretkey
+                  key: rootPassword
+            {{- if .Values.metrics.serviceMonitor.public }}
+            - name: MINIO_PROMETHEUS_AUTH_TYPE
+              value: "public"
+            {{- end}}
             {{- range $key, $val := .Values.environment }}
             - name: {{ $key }}
               value: {{ $val | quote }}

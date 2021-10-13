@@ -1,18 +1,18 @@
-{{- if .Values.buckets }}
+{{- if .Values.users }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ template "minio.fullname" . }}-make-bucket-job
+  name: {{ template "minio.fullname" . }}-make-user-job
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    app: {{ template "minio.name" . }}-make-bucket-job
+    app: {{ template "minio.name" . }}-make-user-job
     chart: {{ template "minio.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
-{{- with .Values.makeBucketJob.annotations }}
+{{- with .Values.makeUserJob.annotations }}
 {{ toYaml . | indent 4 }}
 {{- end }}
 spec:
@@ -24,30 +24,30 @@ spec:
 {{- if .Values.podLabels }}
 {{ toYaml .Values.podLabels | indent 8 }}
 {{- end }}
-{{- if .Values.makeBucketJob.podAnnotations }}
+{{- if .Values.makeUserJob.podAnnotations }}
       annotations:
-{{ toYaml .Values.makeBucketJob.podAnnotations | indent 8 }}
+{{ toYaml .Values.makeUserJob.podAnnotations | indent 8 }}
 {{- end }}
     spec:
       restartPolicy: OnFailure
 {{- include "minio.imagePullSecrets" . | indent 6 }}
 {{- if .Values.nodeSelector }}
       nodeSelector:
-{{ toYaml .Values.makeBucketJob.nodeSelector | indent 8 }}
+{{ toYaml .Values.makeUserJob.nodeSelector | indent 8 }}
 {{- end }}
-{{- with .Values.makeBucketJob.affinity }}
+{{- with .Values.makeUserJob.affinity }}
       affinity:
 {{ toYaml . | indent 8 }}
 {{- end }}
-{{- with .Values.makeBucketJob.tolerations }}
+{{- with .Values.makeUserJob.tolerations }}
       tolerations:
 {{ toYaml . | indent 8 }}
 {{- end }}
-{{- if .Values.makeBucketJob.securityContext.enabled }}
+{{- if .Values.makeUserJob.securityContext.enabled }}
       securityContext:
-        runAsUser: {{ .Values.makeBucketJob.securityContext.runAsUser }}
-        runAsGroup: {{ .Values.makeBucketJob.securityContext.runAsGroup }}
-        fsGroup: {{ .Values.makeBucketJob.securityContext.fsGroup }}
+        runAsUser: {{ .Values.makeUserJob.securityContext.runAsUser }}
+        runAsGroup: {{ .Values.makeUserJob.securityContext.runAsGroup }}
+        fsGroup: {{ .Values.makeUserJob.securityContext.fsGroup }}
 {{- end }}
       volumes:
         - name: minio-configuration
@@ -69,7 +69,7 @@ spec:
       - name: minio-mc
         image: "{{ .Values.mcImage.repository }}:{{ .Values.mcImage.tag }}"
         imagePullPolicy: {{ .Values.mcImage.pullPolicy }}
-        command: ["/bin/sh", "/config/initialize"]
+        command: ["/bin/sh", "/config/add-user"]
         env:
           - name: MINIO_ENDPOINT
             value: {{ template "minio.fullname" . }}
@@ -83,5 +83,5 @@ spec:
             mountPath: {{ .Values.configPathmc }}certs
           {{ end }}
         resources:
-{{ toYaml .Values.makeBucketJob.resources | indent 10 }}
+{{ toYaml .Values.makeUserJob.resources | indent 10 }}
 {{- end }}
