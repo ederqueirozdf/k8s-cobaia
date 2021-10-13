@@ -2002,7 +2002,7 @@ ruler:
   ## @param ruler.existingConfigmap Name of existing ConfigMap with Ruler configuration
   ## NOTE: This will override ruler.config
   ##
-  existingConfigmap: ""
+  existingConfigmap: "thanos-lab-rules"
   ## @param ruler.replicaCount Number of Thanos Ruler replicas to deploy
   ##
   replicaCount: 1

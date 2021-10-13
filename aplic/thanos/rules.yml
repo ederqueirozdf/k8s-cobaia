@@ -244,4 +244,4 @@ metadata:
     app.kubernetes.io/component: rule
     app.kubernetes.io/name: thanos
   name: thanos-lab-rules
-  namespace: thanos
+  namespace: cobaia-thanos
