@@ -1897,7 +1897,7 @@ storegateway:
 ruler:
   ## @param ruler.enabled Enable/disable Thanos Ruler component
   ##
-  enabled: true
+  enabled: false
 
   queries: 
   - "dnssrv+_grpc._tcp.k8s-cobaia-thanos-query.cobaia-thanos.svc.cluster.local"
