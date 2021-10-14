@@ -52,7 +52,7 @@ alertmanager:
   ## alertmanager container image
   ##
   image:
-    repository: prometheus/alertmanager
+    repository: quay.io/prometheus/alertmanager
     tag: v0.21.0
     pullPolicy: IfNotPresent
 
@@ -676,7 +676,7 @@ server:
   ## Prometheus server container image
   ##
   image:
-    repository: prometheus/prometheus
+    repository: quay.io/prometheus/prometheus
     tag: v2.26.0
     pullPolicy: IfNotPresent
 
@@ -1142,7 +1142,7 @@ pushgateway:
   ## pushgateway container image
   ##
   image:
-    repository: prom/pushgateway
+    repository: quay.io/prom/pushgateway
     tag: v1.3.1
     pullPolicy: IfNotPresent
 
