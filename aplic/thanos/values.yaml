@@ -63,16 +63,7 @@ image:
 ## @param objstoreConfig The [objstore configuration](https://thanos.io/storage.md/)
 ## Specify content for objstore.yml
 ##
-objstoreConfig:
-  type: S3
-  config:
-    bucket: thanos
-    endpoint: k8s-cobaia-minio.cobaia-minio.svc.cluster.local
-    region: lab1
-    access_key: u9wfn33tt4LTlEBr98bA
-    secret_key: iPXc6sa3V07rhtITh2lvWAYul6yruCRFxzYBfYEA
-    http_config: 
-      insecure_skip_verify: true
+
 ## @param indexCacheConfig The [index cache configuration](https://thanos.io/components/store.md/)
 ## Specify content for index-cache.yml
 ##
@@ -117,7 +108,7 @@ query:
   hostAliases: []
   ## @param query.replicaLabel Replica indicator(s) along which data is deduplicated
   ##
-  replicaLabel: [replica]
+  replicaLabel: prometheus_replica
   ## Dynamically configure store APIs using DNS discovery
   ##
   dnsDiscovery:
@@ -292,15 +283,15 @@ query:
   ##
   resources:
     ## Example:
-    ## limits:
-    ##    cpu: 100m
-    ##    memory: 128Mi
-    limits: {}
+    limits:
+       cpu: 300m
+       memory: 356Mi
+    # limits: {}
     ## Examples:
-    ## requests:
-    ##    cpu: 100m
-    ##    memory: 128Mi
-    requests: {}
+    requests:
+       cpu: 100m
+       memory: 128Mi
+    # requests: {}
   ## Thanos Query pods' liveness probe. Evaluated as a template.
   ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
   ## @param query.livenessProbe.enabled Enable livenessProbe
@@ -492,7 +483,8 @@ query:
     ##
     ## If certManager is set to true, annotation kubernetes.io/tls-acme: "true" will automatically be set
     ##
-    annotations: {}
+    annotations:
+        kubernetes.io/ingress.class: nginx
     ## @param query.ingress.extraHosts The list of additional hostnames to be covered with this ingress record.
     ## Most likely the hostname above will be enough, but in the event more hosts are needed, this is an array
     ## extraHosts:
@@ -1110,15 +1102,15 @@ bucketweb:
   ##
   resources:
     ## Example:
-    ## limits:
-    ##    cpu: 100m
-    ##    memory: 128Mi
-    limits: {}
+    limits:
+       cpu: 300m
+       memory: 356Mi
+    # limits: {}
     ## Examples:
-    ## requests:
-    ##    cpu: 100m
-    ##    memory: 128Mi
-    requests: {}
+    requests:
+       cpu: 100m
+       memory: 128Mi
+    # requests: {}
   ## Thanos Bucket Web pods' liveness probe. Evaluated as a template.
   ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
   ## @param bucketweb.livenessProbe.enabled Enable livenessProbe
@@ -1276,7 +1268,7 @@ bucketweb:
 compactor:
   ## @param compactor.enabled Enable/disable Thanos Compactor component
   ##
-  enabled: false
+  enabled: true
   ## @param compactor.logLevel Thanos Compactor log level
   ##
   logLevel: info
@@ -1299,9 +1291,9 @@ compactor:
   ## @param compactor.retentionResolution5m Resolution and Retention flag
   ## @param compactor.retentionResolution1h Resolution and Retention flag
   ##
-  retentionResolutionRaw: 30d
-  retentionResolution5m: 30d
-  retentionResolution1h: 10y
+  retentionResolutionRaw: 3d
+  retentionResolution5m: 7d
+  retentionResolution1h: 14d
   ## @param compactor.consistencyDelay Minimum age of fresh (non-compacted) blocks before they are being processed
   ##
   consistencyDelay: 30m
@@ -1325,7 +1317,8 @@ compactor:
   extraVolumeMounts: []
   ## @param compactor.extraFlags Extra Flags to passed to Thanos Compactor
   ##
-  extraFlags: []
+  extraFlags:
+  - --delete-delay=48h
   ## @param compactor.strategyType Deployment Strategy Type, can be set to RollingUpdate or Recreate by default
   ##
   strategyType: RollingUpdate
@@ -1414,15 +1407,15 @@ compactor:
   ##
   resources:
     ## Example:
-    ## limits:
-    ##    cpu: 100m
-    ##    memory: 128Mi
-    limits: {}
+    limits:
+       cpu: 300m
+       memory: 356Mi
+    # limits: {}
     ## Examples:
-    ## requests:
-    ##    cpu: 100m
-    ##    memory: 128Mi
-    requests: {}
+    requests:
+       cpu: 100m
+       memory: 128Mi
+    # requests: {}
   ## Thanos Compactor pods' liveness probe. Evaluated as a template.
   ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
   ## @param compactor.livenessProbe.enabled Enable livenessProbe
@@ -1714,15 +1707,15 @@ storegateway:
   ##
   resources:
     ## Example:
-    ## limits:
-    ##    cpu: 100m
-    ##    memory: 128Mi
-    limits: {}
+    limits:
+       cpu: 300m
+       memory: 356Mi
+    # limits: {}
     ## Examples:
-    ## requests:
-    ##    cpu: 100m
-    ##    memory: 128Mi
-    requests: {}
+    requests:
+       cpu: 100m
+       memory: 128Mi
+    # requests: {}
   ## Thanos Store Gateway pods' liveness probe. Evaluated as a template.
   ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
   ## @param storegateway.livenessProbe.enabled Enable livenessProbe
@@ -1760,7 +1753,7 @@ storegateway:
   service:
     ## @param storegateway.service.type Kubernetes service type
     ##
-    type: ClusterIP
+    type: NodePort
     ## @param storegateway.service.clusterIP Thanos Store Gateway service clusterIP IP
     ## e.g:
     ## clusterIP: None
@@ -1783,7 +1776,7 @@ storegateway:
       ## Specify the nodePort value for the LoadBalancer and NodePort service types
       ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport
       ##
-      nodePort: ""
+      nodePort: "30910"
     ## @param storegateway.service.loadBalancerIP Load balancer IP if service type is `LoadBalancer`
     ## Set the LoadBalancer service type to internal only
     ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#internal-load-balancer
@@ -1918,7 +1911,7 @@ ruler:
   logFormat: logfmt
   ## @param ruler.replicaLabel Label to treat as a replica indicator along which data is deduplicated
   ##
-  replicaLabel: replica
+  replicaLabel: prometheus_replica
   serviceAccount:
     ## @param ruler.serviceAccount.annotations Annotations for Thanos Ruler Service Account
     ##
@@ -1936,7 +1929,8 @@ ruler:
     enabled: false
   ## @param ruler.alertmanagers Alermanager URLs array
   ##
-  alertmanagers: []
+  alertmanagers:
+    - "http://alertmanager.cobaia-alertmanager.svc.cluster.local"
   ## @param ruler.alertmanagersConfig Alertmanagers Configuration
   ##
   ## Creates a secret from the config which is then mounted to the pod
@@ -2106,15 +2100,15 @@ ruler:
   ##
   resources:
     ## Example:
-    ## limits:
-    ##    cpu: 100m
-    ##    memory: 128Mi
-    limits: {}
+    limits:
+       cpu: 300m
+       memory: 356Mi
+    # limits: {}
     ## Examples:
     ## requests:
-    ##    cpu: 100m
-    ##    memory: 128Mi
-    requests: {}
+       cpu: 100m
+       memory: 128Mi
+    # requests: {}
   ## Thanos Ruler pods' liveness probe. Evaluated as a template.
   ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
   ## @param ruler.livenessProbe.enabled Enable livenessProbe
@@ -2246,7 +2240,7 @@ ruler:
   ingress:
     ## @param ruler.ingress.enabled Enable ingress controller resource
     ##
-    enabled: false
+    enabled: true
     ## @param ruler.ingress.certManager Add annotations for cert-manager
     ##
     certManager: false
@@ -2259,7 +2253,8 @@ ruler:
     ##
     ## If certManager is set to true, annotation kubernetes.io/tls-acme: "true" will automatically be set
     ##
-    annotations: {}
+    annotations:
+      kubernetes.io/ingress.class: nginx    
     ## @param ruler.ingress.extraHosts The list of additional hostnames to be covered with this ingress record.
     ## Most likely the hostname above will be enough, but in the event more hosts are needed, this is an array
     ## extraHosts:
@@ -2733,7 +2728,7 @@ receive:
 metrics:
   ## @param metrics.enabled Enable the export of Prometheus metrics
   ##
-  enabled: false
+  enabled: true
   ## Prometheus Operator ServiceMonitor configuration
   ##
   serviceMonitor:
@@ -2839,3 +2834,14 @@ minio:
   ## @param minio.defaultBuckets Comma, semi-colon or space separated list of MinIO&reg; buckets to create
   ##
   defaultBuckets: 'thanos'
+
+objstoreConfig:
+  type: S3
+  config:
+    bucket: thanos
+    endpoint: k8s-cobaia-minio.cobaia-minio.svc.cluster.local
+    region: lab1
+    access_key: u9wfn33tt4LTlEBr98bA
+    secret_key: iPXc6sa3V07rhtITh2lvWAYul6yruCRFxzYBfYEA
+    http_config: 
+      insecure_skip_verify: true
