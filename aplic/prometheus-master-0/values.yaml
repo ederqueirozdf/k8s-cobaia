@@ -198,7 +198,7 @@ alertmanager:
     ## Ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
     ##
     accessModes:
-      - ReadWriteMany
+      - ReadWriteOnce
 
     ## alertmanager data Persistent Volume Claim annotations
     ##
@@ -919,7 +919,7 @@ server:
     ## Ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
     ##
     accessModes:
-      - ReadWriteMany
+      - ReadWriteOnce
 
     ## Prometheus server data Persistent Volume annotations
     ##
@@ -936,7 +936,7 @@ server:
 
     ## Prometheus server data Persistent Volume size
     ##
-    size: 5Gi
+    size: 2Gi
 
     ## Prometheus server data Persistent Volume Storage Class
     ## If defined, storageClassName: <storageClass>
@@ -1309,7 +1309,7 @@ pushgateway:
     ## Ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
     ##
     accessModes:
-      - ReadWriteMany
+      - ReadWriteOnce
 
     ## pushgateway data Persistent Volume Claim annotations
     ##
