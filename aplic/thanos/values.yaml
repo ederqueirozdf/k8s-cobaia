@@ -63,7 +63,16 @@ image:
 ## @param objstoreConfig The [objstore configuration](https://thanos.io/storage.md/)
 ## Specify content for objstore.yml
 ##
-objstoreConfig: ""
+objstoreConfig:
+  type: S3
+  config:
+    bucket: thanos
+    endpoint: k8s-cobaia-minio.cobaia-minio.svc.cluster.local
+    region: lab1
+    access_key: u9wfn33tt4LTlEBr98bA
+    secret_key: iPXc6sa3V07rhtITh2lvWAYul6yruCRFxzYBfYEA
+    http_config: 
+      insecure_skip_verify: true
 ## @param indexCacheConfig The [index cache configuration](https://thanos.io/components/store.md/)
 ## Specify content for index-cache.yml
 ##
@@ -944,7 +953,7 @@ queryFrontend:
 bucketweb:
   ## @param bucketweb.enabled Enable/disable Thanos Bucket Web component
   ##
-  enabled: false
+  enabled: true
   ## @param bucketweb.logLevel Thanos Bucket Web log level
   ##
   logLevel: info
@@ -1204,7 +1213,7 @@ bucketweb:
   ingress:
     ## @param bucketweb.ingress.enabled Enable ingress controller resource
     ##
-    enabled: false
+    enabled: true
     ## @param bucketweb.ingress.certManager Add annotations for cert-manager
     ##
     certManager: false
@@ -1897,7 +1906,7 @@ storegateway:
 ruler:
   ## @param ruler.enabled Enable/disable Thanos Ruler component
   ##
-  enabled: false
+  enabled: true
 
   queries: 
   - "dnssrv+_grpc._tcp.k8s-cobaia-thanos-query.cobaia-thanos.svc.cluster.local"
