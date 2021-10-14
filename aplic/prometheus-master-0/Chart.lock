@@ -1,0 +1,12 @@
+dependencies:
+- name: k8s-namespaces
+  repository: http://chartmuseum.devops.nuvem.bb.com.br:30001/bb/psc/
+  version: 0.2.0
+- name: service-external-name
+  repository: http://chartmuseum.devops.nuvem.bb.com.br:30001/bb/psc/
+  version: 0.1.0
+- name: kube-state-metrics
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 3.4.2
+digest: sha256:78a4d359f2a8d7ccc194f621c00d5a3089c98ae2a315cd18c4763fd16ce15cf4
+generated: "2021-09-16T15:56:02.847228043-03:00"
