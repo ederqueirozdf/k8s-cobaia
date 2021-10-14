@@ -130,7 +130,7 @@ query:
   ## @param query.stores Statically configure store APIs to connect with Thanos Query
   ##
   stores:
-  #  - "dnssrv+_grpc._tcp.k8s-cobaia-prometheus-master-0-server.prometheus-master-0.svc.cluster.local"
+   - "dnssrv+_grpc._tcp.k8s-cobaia-prometheus-master-0-server.cobaia-prometheus-master-0.svc.cluster.local"
 
   # thanos-rule
    - "dnssrv+_grpc._tcp.k8s-cobaia-thanos-ruler.cobaia-thanos.svc.cluster.local"
