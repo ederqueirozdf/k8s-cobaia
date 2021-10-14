@@ -142,8 +142,7 @@ query:
   #  - "dnssrv+_grpc._tcp.k8s-cobaia-prometheus-master-0-server.prometheus-master-0.svc.cluster.local"
 
   # thanos-rule
-   - "dnssrv+_grpc._tcp.k8s-cobaia-thanos-infra-ruler.cobaia-thanos.svc.cluster.local"
-   - "dnssrv+_grpc._tcp.k8s-cobaia-thanos-infra-storegateway.cobaia-thanos.svc.cluster.local"  
+   - "dnssrv+_grpc._tcp.k8s-cobaia-thanos-ruler.cobaia-thanos.svc.cluster.local"
   ## @param query.sdConfig Query Service Discovery Configuration
   ## Specify content for servicediscovery.yml
   ##
