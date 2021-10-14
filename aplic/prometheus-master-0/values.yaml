@@ -626,11 +626,11 @@ server:
     image: thanos/thanos:master-2019-11-26-82c005d9
     resources:
       requests:
-        memory: "4Gi"
-        cpu: "2"
+        memory: "512Mi"
+        cpu: "200m"
       limits:
-        memory: "4Gi"
-        cpu: "2"
+        memory: "1Gi"
+        cpu: "1"
     env: []
     # - name: GOOGLE_APPLICATION_CREDENTIALS
     #   value: /etc/secret/sa
