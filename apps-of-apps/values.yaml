@@ -106,3 +106,25 @@ argocd:
           automated:
             prune: true
             selfHeal: true
+
+    - name: "velero"
+      finalizers: []
+      labels: []
+        # - key: chave
+        #   value: valor
+      annotations: []
+        # - key: chave
+        #   value: valor
+      spec:
+        project: k8s-cobaia
+        source:
+          path: aplic/velero
+          repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
+          targetRevision: HEAD 
+        destination:
+          namespace: cobaia-velero
+          server: https://kubernetes.default.svc
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true            
