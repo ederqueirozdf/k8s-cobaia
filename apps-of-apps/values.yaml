@@ -1,5 +1,5 @@
 clusterK8s:
-  name: "do-sfo3-k8s-lab"
+  name: $CLUSTER_NAME_ARGO
   server: $CLUSTER_URL_ARGO
   source: https://github.com/ederqueirozdf/k8s-cobaia.git
   extraApi: 
