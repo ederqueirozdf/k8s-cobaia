@@ -37,7 +37,7 @@ argocd:
             prune: true
             selfHeal: true
 
-    - name: "NOM"
+    - name: "nom-ultimate"
       finalizers: []
       labels: []
         # - key: chave
@@ -48,11 +48,11 @@ argocd:
       spec:
         project: do-sfo3-k8s-lab
         source:
-          path: aplic/NOM
+          path: aplic/nom-ultimate
           repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
           targetRevision: HEAD     
         destination:
-          namespace: lab-nexus
+          namespace: lab-nom-ultimate
           server: https://kubernetes.default.svc
         syncPolicy:
           automated:
