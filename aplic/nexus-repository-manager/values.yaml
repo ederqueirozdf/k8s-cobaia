@@ -55,15 +55,15 @@ nexus:
   podAnnotations: {}
   livenessProbe:
     initialDelaySeconds: 30
-    periodSeconds: 30
+    periodSeconds: 40
     failureThreshold: 6
-    timeoutSeconds: 10
+    timeoutSeconds: 30
     path: /
   readinessProbe:
     initialDelaySeconds: 30
-    periodSeconds: 30
+    periodSeconds: 40
     failureThreshold: 6
-    timeoutSeconds: 10
+    timeoutSeconds: 30
     path: /
   # hostAliases allows the modification of the hosts file inside a container
   hostAliases: []
@@ -101,7 +101,7 @@ deployment:
   additionalVolumeMounts:
 
 ingress:
-  enabled: true
+  enabled: false
   ingressClassName: nginx
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "0"
