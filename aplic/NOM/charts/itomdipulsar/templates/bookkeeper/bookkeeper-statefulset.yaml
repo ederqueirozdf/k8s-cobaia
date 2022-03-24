@@ -1,0 +1,353 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+{{ if .Values.components.bookkeeper -}}
+{{- include "pulsar.setCurrentComponentFull" (set . "currentComponent" .Values.bookkeeper.component) -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: "{{ .currentComponentFull }}"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pulsar.standardLabels" . | nindent 4 }}
+  annotations:
+    {{- include "pulsar.template.annotations" . | nindent 4 }}
+spec:
+  serviceName: "{{ .currentComponentFull }}"
+  replicas: {{ .Values.bookkeeper.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pulsar.matchLabels" . | nindent 6 }}
+  updateStrategy:
+    type: RollingUpdate
+  podManagementPolicy: OrderedReady
+  template:
+    metadata:
+      labels:
+        {{- include "pulsar.standardLabels" . | nindent 8 }}
+      annotations:
+        pod.boostport.com/vault-init-container: generate-certificates
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.bookkeeper.ports.http }}"
+        {{- if .Values.bookkeeper.autoRollDeployment }}
+        checksum/config: {{ include (print $.Template.BasePath "/bookkeeper/bookkeeper-configmap.yaml") . | sha256sum }}
+        {{- end }}
+        {{- include "pulsar.template.annotations" . | nindent 8 }}
+{{- with .Values.bookkeeper.annotations }}
+{{ toYaml . | indent 8 }}
+{{- end }}
+    spec:
+      securityContext:
+        runAsUser: {{ .Values.global.securityContext.user | int64 }}
+        runAsGroup: {{ .Values.global.securityContext.group | int64 }}
+        fsGroup: {{ .Values.global.securityContext.fsGroup  | int64 }}
+      {{- with ( coalesce .Values.nodeSelector .Values.global.nodeSelector ) }}
+      nodeSelector:
+        {{ toYaml . }}
+      {{- end }}
+    {{- if .Values.bookkeeper.tolerations }}
+      tolerations:
+{{ toYaml .Values.bookkeeper.tolerations | indent 8 }}
+    {{- end }}
+
+      serviceAccount: {{ .Values.deployment.rbac.serviceAccount | default "itomdipulsar-sa" }}
+      serviceAccountName: {{ .Values.deployment.rbac.serviceAccount | default "itomdipulsar-sa" }}
+      {{ if eq (include  "pulsar.is_cloud_deployment" . ) "true" -}}
+      {{ if .Values.bookkeeper.topologySpreadConstraints.enabled -}}
+      topologySpreadConstraints:
+      - maxSkew: {{ .Values.bookkeeper.topologySpreadConstraints.maxSkew | default 1 }}
+        topologyKey: {{ .Values.bookkeeper.topologySpreadConstraints.topologyKey | default "topology.kubernetes.io/zone" }}
+        whenUnsatisfiable: {{ .Values.bookkeeper.topologySpreadConstraints.whenUnsatisfiable | default "ScheduleAnyway" }}
+        labelSelector:
+          matchLabels:
+            component: {{ .Values.bookkeeper.component }}
+      {{- end }}
+      {{- end }}
+      affinity:
+        {{- if and .Values.affinity.anti_affinity .Values.bookkeeper.affinity.anti_affinity}}
+        podAntiAffinity:
+          {{ .Values.autorecovery.affinity.type }}:
+          {{ if eq .Values.bookkeeper.affinity.type "requiredDuringSchedulingIgnoredDuringExecution"}}
+          - labelSelector:
+              matchExpressions:
+              - key: "app"
+                operator: In
+                values:
+                - "{{ template "pulsar.name" . }}"
+              - key: "release"
+                operator: In
+                values:
+                - {{ .Release.Name }}
+              - key: "component"
+                operator: In
+                values:
+                - {{ .currentComponent }}
+            topologyKey: "kubernetes.io/hostname"
+          {{ else }}
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: "app"
+                      operator: In
+                      values:
+                      - "{{ template "pulsar.name" . }}"
+                    - key: "release"
+                      operator: In
+                      values:
+                      - {{ .Release.Name }}
+                    - key: "component"
+                      operator: In
+                      values:
+                      - {{ .currentComponent }}
+                topologyKey: "kubernetes.io/hostname"
+          {{ end }}
+        {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.bookkeeper.gracePeriod }}
+      initContainers:
+    {{- include "helm-lib.waitForVault" . | nindent 6 }}
+      # This init container will generate certificates.
+      - name: generate-certificates
+    {{- if and .Values.global.vaultInit.registry .Values.global.vaultInit.orgName }}
+        image: {{ .Values.global.vaultInit.registry }}/{{ .Values.global.vaultInit.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+    {{- else}}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+    {{- end}}
+        # command: ["sh", "-c"]
+        # args:
+        # - >
+        #   sleep 5
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: CERT_COMMON_NAME
+            value: "Realm:RID,Common_Name:{{ .Values.global.externalAccessHost }},Additional_SAN:{{ .currentComponentFull }};Realm:RE,Common_Name:{{ .Values.global.externalAccessHost }},Additional_SAN:{{ .currentComponentFull }}/{{ .currentComponentFull }}.{{ .Release.Namespace }}/{{ .currentComponentFull }}.{{ .Release.Namespace }}.svc"
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+      # This initContainer will wait for bookkeeper initnewcluster to complete
+      # before deploying the bookies
+      - name: pulsar-bookkeeper-verify-clusterid
+
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.pulsar.image }}:{{ .Values.pulsar.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        command: ["sh", "-c"]
+        args:
+        # only reformat bookie if bookkeeper is running without persistence
+        - >
+          source bin/coso-init.sh;
+          {{- include "pulsar.bookkeeper.init.verify_cluster_id" . | nindent 10 }}
+        envFrom:
+        - configMapRef:
+            name: "{{ .currentComponentFull }}"
+        volumeMounts:
+        - name: tmp
+          mountPath: /pulsar/tmp
+        - name: conf
+          mountPath: /pulsar/conf
+        - name: logs
+          mountPath: /pulsar/logs
+        - name: ssl
+          mountPath: /pulsar/ssl
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+        {{- include "pulsar.coso.init.volumeMounts" . | nindent 8 }}
+        {{- include "pulsar.bookkeeper.certs.volumeMounts" . | nindent 8 }}
+{{- with .Values.common.extraInitContainers }}
+{{ toYaml . | indent 6 }}
+{{- end }}
+{{- with .Values.bookkeeper.extraInitContainers }}
+{{ toYaml . | indent 6 }}
+{{- end }}
+      containers:
+      - name: certificate-renew
+      {{- if and .Values.global.vaultRenew.registry .Values.global.vaultRenew.orgName }}
+        image: {{ .Values.global.vaultRenew.registry }}/{{ .Values.global.vaultRenew.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+      {{- else }}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+      {{- end }}
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+      - name: "{{ .currentComponentFull }}"
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.pulsar.image }}:{{ .Values.pulsar.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        {{- if .Values.bookkeeper.probe.liveness.enabled }}
+        livenessProbe:
+          httpGet:
+            path: /api/v1/bookie/state
+            port: {{ .Values.bookkeeper.ports.http }}
+          initialDelaySeconds: {{ .Values.bookkeeper.probe.liveness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.bookkeeper.probe.liveness.periodSeconds }}
+          timeoutSeconds: {{ .Values.bookkeeper.probe.liveness.timeoutSeconds }}
+          failureThreshold: {{ .Values.bookkeeper.probe.liveness.failureThreshold }}
+          successThreshold: {{ .Values.bookkeeper.probe.liveness.successThreshold }}
+        {{- end }}
+        {{- if .Values.bookkeeper.probe.readiness.enabled }}
+        readinessProbe:
+          httpGet:
+            path: /api/v1/bookie/is_ready
+            port: {{ .Values.bookkeeper.ports.http }}
+          initialDelaySeconds: {{ .Values.bookkeeper.probe.readiness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.bookkeeper.probe.readiness.periodSeconds }}
+          timeoutSeconds: {{ .Values.bookkeeper.probe.readiness.timeoutSeconds }}
+          failureThreshold: {{ .Values.bookkeeper.probe.readiness.failureThreshold }}
+          successThreshold: {{ .Values.bookkeeper.probe.readiness.successThreshold }}
+        {{- end }}
+        {{- if .Values.bookkeeper.probe.startup.enabled }}
+        startupProbe:
+          httpGet:
+            path: /api/v1/bookie/is_ready
+            port: {{ .Values.bookkeeper.ports.http }}
+          initialDelaySeconds: {{ .Values.bookkeeper.probe.startup.initialDelaySeconds }}
+          periodSeconds: {{ .Values.bookkeeper.probe.startup.periodSeconds }}
+          timeoutSeconds: {{ .Values.bookkeeper.probe.startup.timeoutSeconds }}
+          failureThreshold: {{ .Values.bookkeeper.probe.startup.failureThreshold }}
+          successThreshold: {{ .Values.bookkeeper.probe.startup.successThreshold }}
+        {{- end }}
+      {{- if .Values.bookkeeper.resources }}
+        resources:
+{{ toYaml .Values.bookkeeper.resources | indent 10 }}
+      {{- end }}
+        command: ["bash", "-c"]
+        args:
+        - >
+          source bin/coso-init.sh;
+          bin/apply-config-from-env.py conf/bookkeeper.conf;
+          {{- if eq .Values.global.docker.orgName "streamnative/sn-pulsar" }}
+          scripts/run-bookie.sh;
+          {{- else }}
+          bin/pulsar bookie;
+          {{- end }}
+        ports:
+        - name: bookie
+          containerPort: {{ .Values.bookkeeper.ports.bookie }}
+        - name: http
+          containerPort: {{ .Values.bookkeeper.ports.http }}
+        envFrom:
+        - configMapRef:
+            name: "{{ .currentComponentFull }}"
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: dbStorage_rocksDB_logPath
+          value: /pulsar/logs
+        - name: VOLUME_NAME
+          value: "{{ .currentComponentFull }}-{{ .Values.bookkeeper.volumes.journal.name }}"
+        - name: BOOKIE_PORT
+          value: "{{ .Values.bookkeeper.ports.bookie }}"
+        {{- if .Values.bookkeeper.placementPolicy.rackAware }}
+        - name: BOOKIE_RACK_AWARE_ENABLED
+          value: "true"
+        {{- end }}
+        volumeMounts:
+        - name: tmp
+          mountPath: /pulsar/tmp
+        - name: conf
+          mountPath: /pulsar/conf
+        - name: logs
+          mountPath: /pulsar/logs
+        - name: ssl
+          mountPath: /pulsar/ssl
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+        {{- include "pulsar.coso.init.volumeMounts" . | nindent 8 }}
+        {{- if .Values.global.localPersistence.enabled }}
+        - name: "{{ .currentComponentFull }}-{{ .Values.bookkeeper.volumes.journal.name }}"
+          mountPath: /pulsar/data/bookkeeper/journal
+        - name: "{{ .currentComponentFull }}-{{ .Values.bookkeeper.volumes.ledgers.name }}"
+          mountPath: /pulsar/data/bookkeeper/ledgers
+        {{- else }}
+        - name: {{ .currentComponentFull }}
+          subPath: {{ .Values.bookkeeper.volumes.journal.name }}
+          mountPath: /pulsar/data/bookkeeper/journal
+        - name: {{ .currentComponentFull }}
+          subPath: {{ .Values.bookkeeper.volumes.ledgers.name }}
+          mountPath: /pulsar/data/bookkeeper/ledgers
+        {{- end }}
+        {{- include "pulsar.bookkeeper.certs.volumeMounts" . | nindent 8 }}
+        {{- include "pulsar.bookkeeper.log.volumeMounts" . | nindent 8 }}
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: conf
+        emptyDir: {}
+      - name: ssl
+        emptyDir: {}
+      - name: logs
+        emptyDir: {}
+      - name: vault-token
+        emptyDir: {}
+      {{- include "pulsar.coso.init.volumes" . | nindent 6 }}
+      {{- if not (and .Values.global.localPersistence.enabled .Values.bookkeeper.volumes.persistence) }}
+        {{- if ne (.Values.bookkeeper.replicaCount | int) 1 }}
+        {{- fail "Bookkeeper replica count should be 1 when not using local persistence" }}
+        {{- end }}
+      - name: "{{ .currentComponentFull }}"
+        {{- include "helm-lib.pvcStorage" (dict "claim" "dataVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      {{- end }}
+      {{- include "pulsar.bookkeeper.certs.volumes" . | nindent 6 }}
+      {{- include "pulsar.bookkeeper.log.volumes" . | nindent 6 }}
+{{- if and .Values.global.localPersistence.enabled .Values.bookkeeper.volumes.persistence}}
+  volumeClaimTemplates:
+  - metadata:
+      name: "{{ .currentComponentFull }}-{{ .Values.bookkeeper.volumes.journal.name }}"
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: {{ .Values.bookkeeper.volumes.journal.size }}
+    {{- if and .Values.global.localPersistence.enabled (include "bookkeeper.journal_local_storage" . ) }}
+      storageClassName: {{ .Values.bookkeeper.volumes.journal.storageClassName | default "fast-disks" }}
+    {{- else }}
+      {{- if  .Values.bookkeeper.volumes.journal.storageClass }}
+      storageClassName: {{ .Values.bookkeeper.volumes.journal.storageClassName | default "fast-disks" }}
+      {{- else if .Values.bookkeeper.volumes.journal.storageClassName }}
+      storageClassName: {{ .Values.bookkeeper.volumes.journal.storageClassName | default "fast-disks" }}
+      {{- end -}}
+    {{- end }}
+  - metadata:
+      name: "{{ .currentComponentFull }}-{{ .Values.bookkeeper.volumes.ledgers.name }}"
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: {{ .Values.bookkeeper.volumes.ledgers.size }}
+    {{- if and .Values.global.localPersistence.enabled (include "bookkeeper.ledgers_local_storage" . ) }}
+      storageClassName: {{ .Values.bookkeeper.volumes.ledgers.storageClassName | default "fast-disks" }}
+    {{- else }}
+      {{- if  .Values.bookkeeper.volumes.ledgers.storageClass }}
+      storageClassName: {{ .Values.bookkeeper.volumes.ledgers.storageClassName | default "fast-disks" }}
+      {{- else if .Values.bookkeeper.volumes.ledgers.storageClassName }}
+      storageClassName: {{ .Values.bookkeeper.volumes.ledgers.storageClassName | default "fast-disks" }}
+      {{- end -}}
+    {{- end }}
+{{- end }}
+{{- end }}

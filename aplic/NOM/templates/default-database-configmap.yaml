@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  annotations:
+  name: default-database-configmap
+data:
+  CREATE_DATABASE: "true"
+  DB_SSL_ENABLED: "false"
+  DEFAULT_DB_CA: ""
+  DEFAULT_DB_CDFIDM_PASSWORD_KEY: defaultdb_cdfidm_user_password
+  DEFAULT_DB_CDFIDM_USERNAME: cdfidm
+  DEFAULT_DB_CONNECTION_URL: ""
+  DEFAULT_DB_CONNECTIONSTRING: ""
+  DEFAULT_DB_HA: "false"
+  DEFAULT_DB_HOST: default-postgresql-svc.core
+  DEFAULT_DB_NAME: defaultdb
+  DEFAULT_DB_ORCWAY: ""
+  DEFAULT_DB_PASSWORD_KEY: defaultdb_user_password
+  DEFAULT_DB_PORT: "5432"
+  DEFAULT_DB_SCHEMA: ""
+  DEFAULT_DB_TYPE: postgresql
+  DEFAULT_DB_USERNAME: postgres
+  EMBEDDED_DB: "true"

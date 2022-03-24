@@ -1,0 +1,8 @@
+apiVersion: v2
+appVersion: 11.8.11
+dependencies:
+- name: helm-lib
+  version: 1.5.27
+description: Micro Focus Business Value Dashboard
+name: bvd
+version: 11.8.11

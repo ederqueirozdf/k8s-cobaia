@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: taskexecutor-logback-cm
+data:
+  task-executor-logback.xml: |-
+    {{- (tpl (.Files.Get "conf/task-executor-logback.xml") . ) | nindent 8 }}

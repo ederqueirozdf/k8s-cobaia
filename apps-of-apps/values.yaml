@@ -37,6 +37,29 @@ argocd:
             prune: true
             selfHeal: true
 
+    - name: "nexus"
+      finalizers: []
+      labels: []
+        # - key: chave
+        #   value: valor
+      annotations: []
+        # - key: chave
+        #   value: valor
+      spec:
+        project: do-sfo3-k8s-lab
+        source:
+          path: aplic/nexus-repository-manager
+          repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
+          targetRevision: HEAD     
+        destination:
+          namespace: lab-nexus
+          server: https://kubernetes.default.svc
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+
+
 # #####################################################################
 # MONITOR
 # #####################################################################

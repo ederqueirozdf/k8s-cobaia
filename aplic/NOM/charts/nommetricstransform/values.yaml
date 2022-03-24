@@ -1,0 +1,139 @@
+global:
+  docker:
+    # set the global.docker.registry and orgName to your internal Docker registry/org
+    registry: localhost:5000
+    orgName: hpeswitom 
+    imagePullSecret: ""
+    imagePullPolicy: IfNotPresent
+
+  # User ID and group ID to run as
+  securityContext:
+    user: "1999"
+    fsGroup: "1999"
+
+  # If deployPrometheusConfig is true, CDF Monitoring Framework is assumed to be installed and will use it for metric storage
+  prometheus:
+    deployPrometheusConfig: false
+
+  rbac:
+    # Specifies whether a ServiceAccount should be created
+    serviceAccountCreate: true
+
+  # persistence.enabled=true means that the PVCs are expected to be dynamically created by the composition chart.
+  # Otherwise, persistence.dataVolumeClaim is a persistent volume claim for storing data files.
+  # persistence.configVolumeClaim is a persistent volume claim for storing configuration files.
+  # If all of the above are undefined, then temporary ephemeral storage will be created (only if isDemo=true)
+  persistence:
+    enabled: false
+    dataVolumeClaim: 
+    configVolumeClaim: 
+
+  # REQUIRED: The externalAccessHost is the end-point for the service
+  externalAccessHost: 
+  # The externalAccessPort defaults to 443
+  externalAccessPort: 443
+
+  coso:
+    isSelected:
+  services:
+    sharedOpticReporting: false
+    namespace:
+    external:
+      host:
+      port:
+    internal:
+      host:
+      port:
+    diAdminPort:
+    diDataAccessPort:
+    diPulsarPort:
+    diPulsarProxyClientPort:
+
+  opsbridgeIntegration:
+    isSelected: false
+
+  multicast:
+    isSelected: false
+
+  qa:
+    isSelected: false
+
+  database:
+    internal: true
+  # Global image references
+  vaultRenew:
+    image: kubernetes-vault-renew
+    imageTag: 0.12.0-003
+  vaultInit:
+    image: kubernetes-vault-init
+    imageTag: 0.12.0-003
+  busybox:
+    image: itom-busybox
+    imageTag: 1.34.0-004
+  opensuse:
+    image: opensuse-base
+    imageTag: 15.3-0028
+vertica:
+  host:
+  port:
+  db:
+  username_ro:
+  passwordKey_ro:
+  schema:
+
+baseline:
+  rebuildCacheOnRestart: "true"
+  reprocessingEnable: "true"
+  useNFS: "true"
+  retryMs: "300000"
+  loopCount: "5"
+  consumerSubscriptionType: "Failover"
+  cosoTransformationConcurrency: "10"
+  cosoPulsarAckTimeout: "40"
+  cosoTransformationQueueLimit: "15"
+  cosoConnectionInterval: "300000"
+  maxMessageCount: "15000"
+  dbMaxReadBatchSize: "2000"
+  dbMaxReadParallelThreads: "10"
+  dbMaxWriteBatchSize: "10000"
+  dbMaxWriteParallelThreads: "10"
+  dbCacheStateDeleteIntervalMin: "360"
+  dbMinPersistDelayIntervalMin: "30"
+  dbPersistInterleaveIntervalsAcrossPodsMin: "10"
+  dbPersistCycleInterval: "30"
+  dbCacheQueryHistoryLimitMin: "120"
+  dbCacheMaxConnections: "20"
+  jvmMin: "512m"
+  jvmMax: "3072m"
+  reprocessInterval: "300000"
+  reprocessDelay: "300000"
+  blockIfQueueFull: "true"
+
+deployment:
+  replicas: 3
+  database: {}
+resources:
+  limits:
+    cpu: "4.0"
+    memory: "4000Mi"
+  requests:
+    cpu: "1.0"
+    memory: "1000Mi"
+
+# Assigning pods to cluster nodes
+nodeSelector:
+  Worker: label
+
+tolerations: []
+
+affinity: {}
+
+#####################
+# Image definitions
+#####################
+nomMetrics:
+  image: itom-nom-metric-transformation
+  imageTag: 1.4.90
+sTunnel:
+  image: itom-stunnel
+  imageTag: 11.8.0-0022

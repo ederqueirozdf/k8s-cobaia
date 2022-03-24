@@ -1,0 +1,81 @@
+{{ if and (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") .Values.global.prometheus.deployPrometheusConfig }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app: itomdipostload
+    app.kubernetes.io/name: itom-di-taskcontroller
+    {{- include "servicemonitor.labels" . | nindent 4 }}
+  name: itom-di-taskcontroller
+  namespace: {{ .Release.Namespace }}
+spec:
+  endpoints:
+  - tlsConfig:
+      serverName: itom-di-message-bus-svc
+      {{- include "servicemonitor.tlsConfig.certs.rid" . | nindent 6 }}
+    port: metrics
+    path: /metrics
+    scheme: https
+    interval: 20s
+    relabelings:
+    {{- include "servicemonitor.relabelings" . | nindent 4 }}
+    metricRelabelings:
+    - action: replace 
+      sourceLabels: [task_id]  
+      regex: '(.*)' 
+      targetLabel: a1_task_id  
+      replacement: '${1}' 
+    - sourceLabels: [__meta_kubernetes_pod_label_app]  
+      action: replace 
+      targetLabel: job 
+    - action: replace 
+      sourceLabels: [taskflow_id]  
+      regex: '(.*)' 
+      targetLabel: a3_taskflow_id  
+      replacement: '${1}' 
+    - action: replace 
+      sourceLabels: [state]  
+      regex: '(.*)' 
+      targetLabel: a5_state  
+      replacement: '${1}' 
+    - action: replace 
+      sourceLabels: [status] 
+      regex: '(.*)' 
+      targetLabel: a6_status 
+      replacement: '${1}' 
+    - action: replace
+      sourceLabels: [start_date_time]
+      regex: '(.*)'
+      targetLabel: a8_start_date_time
+      replacement: '${1}'
+    - action: replace
+      sourceLabels: [end_date_time]
+      regex: '(.*)'
+      targetLabel: a91_end_date_time
+      replacement: '${1}'
+    - action: replace 
+      sourceLabels: [task_name]  
+      regex: '(.*)' 
+      targetLabel: a2_task_name  
+      replacement: '${1}'
+    - action: replace 
+      sourceLabels: [taskflow_name]  
+      regex: '(.*)' 
+      targetLabel: a4_taskflow_name  
+      replacement: '${1}'
+    - action: replace 
+      sourceLabels: [status_info]  
+      regex: '(.*)' 
+      targetLabel: a7_status_info  
+      replacement: '${1}'
+    - action: replace 
+      sourceLabels: [retry_count]  
+      regex: '(.*)' 
+      targetLabel: a92_retry_count 
+      replacement: '${1}'
+  selector:
+    matchLabels:
+      app: itomdipostload
+      app.kubernetes.io/name: itom-di-taskcontroller
+  {{- include "servicemonitor.namespaceSelector" . | nindent 2 }}
+{{ end }}

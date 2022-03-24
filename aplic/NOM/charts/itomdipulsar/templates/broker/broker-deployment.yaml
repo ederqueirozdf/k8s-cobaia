@@ -1,0 +1,338 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+{{ if .Values.components.broker -}}
+{{- include "pulsar.setCurrentComponentFull" (set . "currentComponent" .Values.broker.component) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ .currentComponentFull }}"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pulsar.standardLabels" . | nindent 4 }}
+  annotations:
+    {{- include "pulsar.template.annotations" . | nindent 4 }}
+    {{- include "pulsar.template.reloaderannotations" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.broker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "pulsar.matchLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1        # how many pods we can add at a time
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        {{- include "pulsar.standardLabels" . | nindent 8 }}
+        {{- if and .Values.tls.enabled .Values.tls.broker.enabled }}
+        itom.microfocus.com/tls-metrics: "true"
+        {{- end }}
+      annotations:
+        pod.boostport.com/vault-init-container: generate-certificates
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        prometheus.io/scrape: "true"
+        {{- if and .Values.tls.enabled .Values.tls.broker.enabled }}
+        prometheus.io/port: "{{ .Values.broker.ports.https }}"
+        {{- else }}
+        prometheus.io/port: "{{ .Values.broker.ports.http }}"
+        {{- end }}
+        {{- if .Values.broker.autoRollDeployment }}
+        checksum/config: {{ include (print $.Template.BasePath "/broker/broker-configmap.yaml") . | sha256sum }}
+        {{- end }}
+        {{- include "pulsar.template.annotations" . | nindent 8 }}
+{{- with .Values.broker.annotations }}
+{{ toYaml . | indent 8 }}
+{{- end }}
+    spec:
+      securityContext:
+        runAsUser: {{ .Values.global.securityContext.user | int64 }}
+        runAsGroup: {{ .Values.global.securityContext.group | int64 }}
+        fsGroup: {{ .Values.global.securityContext.fsGroup | int64 }}
+      {{- with ( coalesce .Values.nodeSelector .Values.global.nodeSelector ) }}
+      nodeSelector:
+        {{ toYaml . }}
+      {{- end }}
+    {{- if .Values.broker.tolerations }}
+      tolerations:
+{{ toYaml .Values.broker.tolerations | indent 8 }}
+    {{- end }}
+
+      serviceAccount: {{ .Values.deployment.rbac.brokerServiceAccount | default "itomdipulsar-broker-sa" }}
+      serviceAccountName: {{ .Values.deployment.rbac.brokerServiceAccount | default "itomdipulsar-broker-sa" }}
+      {{ if eq (include  "pulsar.is_cloud_deployment" . ) "true" -}}
+      {{ if .Values.broker.topologySpreadConstraints.enabled -}}
+      topologySpreadConstraints:
+      - maxSkew: {{ .Values.broker.topologySpreadConstraints.maxSkew | default 1 }}
+        topologyKey: {{ .Values.broker.topologySpreadConstraints.topologyKey | default "topology.kubernetes.io/zone" }}
+        whenUnsatisfiable: {{ .Values.broker.topologySpreadConstraints.whenUnsatisfiable | default "ScheduleAnyway" }}
+        labelSelector:
+          matchLabels:
+            component: {{ .Values.broker.component }}
+      {{- end }}
+      {{- end }}
+      affinity:
+        {{- if and .Values.affinity.anti_affinity .Values.broker.affinity.anti_affinity}}
+        podAntiAffinity:
+          {{ .Values.broker.affinity.type }}:
+          {{ if eq .Values.broker.affinity.type "requiredDuringSchedulingIgnoredDuringExecution"}}
+          - labelSelector:
+              matchExpressions:
+              - key: "app"
+                operator: In
+                values:
+                - "{{ template "pulsar.name" . }}"
+              - key: "release"
+                operator: In
+                values:
+                - {{ .Release.Name }}
+              - key: "component"
+                operator: In
+                values:
+                - {{ .currentComponent }}
+            topologyKey: "kubernetes.io/hostname"
+          {{ else }}
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: "app"
+                      operator: In
+                      values:
+                      - "{{ template "pulsar.name" . }}"
+                    - key: "release"
+                      operator: In
+                      values:
+                      - {{ .Release.Name }}
+                    - key: "component"
+                      operator: In
+                      values:
+                      - {{ .currentComponent }}
+                topologyKey: "kubernetes.io/hostname"
+          {{ end }}
+        {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.broker.gracePeriod }}
+      initContainers:
+    {{- include "helm-lib.waitForVault" . | nindent 6 }}
+      # This init container will generate certificates.
+      - name: generate-certificates
+    {{- if and .Values.global.vaultInit.registry .Values.global.vaultInit.orgName }}
+        image: {{ .Values.global.vaultInit.registry }}/{{ .Values.global.vaultInit.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+    {{- else}}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+    {{- end}}
+        # command: ["sh", "-c"]
+        # args:
+        # - >
+        #   sleep 5
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: CERT_COMMON_NAME
+            value: "Realm:RID,Common_Name:{{ .Values.global.externalAccessHost }},Additional_SAN:{{ .currentComponentFull }};Realm:RE,Common_Name:{{ .Values.global.externalAccessHost }},Additional_SAN:{{ .currentComponentFull }}/{{ .currentComponentFull }}.{{ .Release.Namespace }}/{{ .currentComponentFull }}.{{ .Release.Namespace }}.svc"
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+      # This init container will wait for zookeeper to be ready before
+      # deploying the bookies
+      {{- include "pulsar.zookeeper.wait.init.node" . | nindent 6}}
+      # This init container will wait for bookkeeper to be ready before
+      # deploying the broker
+      - name: wait-bookkeeper-ready
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.pulsar.image }}:{{ .Values.pulsar.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        command: ["sh", "-c"]
+        args:
+          - >
+            source bin/coso-init.sh;
+            bin/apply-config-from-env.py conf/client.conf conf/bookkeeper.conf;
+            until bin/bookkeeper shell whatisinstanceid; do
+              echo "bookkeeper cluster is not initialized yet. backoff for 3 seconds ...";
+              sleep 3;
+            done;
+            echo "bookkeeper cluster is already initialized";
+            bookieServiceNumber="$(nslookup -timeout=10 {{ template "pulsar.fullname" . }}-{{ .Values.bookkeeper.component }} | grep Name | wc -l)";
+            until [ ${bookieServiceNumber} -ge {{ include "pulsar.broker.managedLedgerDefaultEnsembleSize" . | int }} ]; do
+              echo "bookkeeper cluster {{ template "pulsar.fullname" . }} isn't ready yet ... check in 10 seconds ...";
+              sleep 10;
+              bookieServiceNumber="$(nslookup -timeout=10 {{ template "pulsar.fullname" . }}-{{ .Values.bookkeeper.component }} | grep Name | wc -l)";
+            done;
+            echo "bookkeeper cluster is ready";
+        envFrom:
+          - configMapRef:
+              name: "{{ template "pulsar.fullname" . }}-{{ .Values.bookkeeper.component }}"
+        volumeMounts:
+          - name: tmp
+            mountPath: /pulsar/tmp
+          - name: conf
+            mountPath: /pulsar/conf
+          - name: logs
+            mountPath: /pulsar/logs
+          - name: ssl
+            mountPath: /pulsar/ssl
+          - name: vault-token
+            mountPath: /var/run/secrets/boostport.com
+        {{- include "pulsar.coso.init.volumeMounts" . | nindent 10 }}
+        {{- include "pulsar.broker.certs.volumeMounts" . | nindent 10 }}
+{{- with .Values.common.extraInitContainers }}
+{{ toYaml . | indent 6 }}
+{{- end }}
+{{- with .Values.broker.extraInitContainers }}
+{{ toYaml . | indent 6 }}
+{{- end }}
+      containers:
+      - name: certificate-renew
+      {{- if and .Values.global.vaultRenew.registry .Values.global.vaultRenew.orgName }}
+        image: {{ .Values.global.vaultRenew.registry }}/{{ .Values.global.vaultRenew.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+      {{- else }}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+      {{- end }}
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+      - name: "{{ .currentComponentFull }}"
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.pulsar.image }}:{{ .Values.pulsar.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        {{- if .Values.broker.probe.liveness.enabled }}
+        livenessProbe:
+{{ include "pulsar.broker.probe" . | indent 10 }}
+          initialDelaySeconds: {{ .Values.broker.probe.liveness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.broker.probe.liveness.periodSeconds }}
+          timeoutSeconds: {{ .Values.broker.probe.liveness.timeoutSeconds }}
+          failureThreshold: {{ .Values.broker.probe.liveness.failureThreshold }}
+          successThreshold: {{ .Values.broker.probe.liveness.successThreshold }}
+        {{- end }}
+        {{- if .Values.broker.probe.readiness.enabled }}
+        readinessProbe:
+{{ include "pulsar.broker.probe" . | indent 10 }}
+          initialDelaySeconds: {{ .Values.broker.probe.readiness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.broker.probe.readiness.periodSeconds }}
+          timeoutSeconds: {{ .Values.broker.probe.readiness.timeoutSeconds }}
+          failureThreshold: {{ .Values.broker.probe.readiness.failureThreshold }}
+          successThreshold: {{ .Values.broker.probe.readiness.successThreshold }}
+        {{- end }}
+        {{- if .Values.broker.probe.startup.enabled }}
+        startupProbe:
+{{ include "pulsar.broker.probe" . | indent 10 }}
+          initialDelaySeconds: {{ .Values.broker.probe.startup.initialDelaySeconds }}
+          periodSeconds: {{ .Values.broker.probe.startup.periodSeconds }}
+          timeoutSeconds: {{ .Values.broker.probe.startup.timeoutSeconds }}
+          failureThreshold: {{ .Values.broker.probe.startup.failureThreshold }}
+          successThreshold: {{ .Values.broker.probe.startup.successThreshold }}
+        {{- end }}
+      {{- if .Values.broker.resources }}
+        resources:
+{{ toYaml .Values.broker.resources | indent 10 }}
+      {{- end }}
+        command: ["sh", "-c"]
+        args:
+        - >
+          source bin/coso-init.sh;
+          {{- include "pulsar.broker.kop.settings" . | nindent 10 }}
+          bin/apply-config-from-env.py conf/client.conf;
+          bin/apply-config-from-env.py conf/broker.conf;
+          echo "OK" > /pulsar/tmp/status;
+          bin/pulsar zookeeper-shell -server {{ template "pulsar.zookeeper.connect" . }} get {{ template "pulsar.broker.znode" . }};
+          while [ $? -eq 0 ]; do
+            echo "broker {{ template "pulsar.broker.hostname" . }} znode still exists ... check in 10 seconds ...";
+            sleep 10;
+            bin/pulsar zookeeper-shell -server {{ template "pulsar.zookeeper.connect" . }} get {{ template "pulsar.broker.znode" . }};
+          done;
+          cd /pulsar/ssl/vault;
+          /pulsar/bin/pulsar broker;
+        ports:
+        # prometheus needs to access /metrics endpoint
+        - name: http
+          containerPort: {{ .Values.broker.ports.http }}
+        {{- if or (not .Values.tls.enabled) (not .Values.tls.broker.enabled) }}
+        - name: pulsar
+          containerPort: {{ .Values.broker.ports.pulsar }}
+        {{- end }}
+        {{- if and .Values.tls.enabled .Values.tls.broker.enabled }}
+        - name: https
+          containerPort: {{ .Values.broker.ports.https }}
+        - name: pulsarssl
+          containerPort: {{ .Values.broker.ports.pulsarssl }}
+        {{- end }}
+        {{- if .Values.components.kop }}
+        {{- if and .Values.tls.enabled .Values.tls.broker.enabled }}
+        - name: kafkassl
+          containerPort: {{ .Values.kop.ports.ssl }}
+        {{- else }}
+        - name: kafkaPlainText
+          containerPort: {{ .Values.kop.ports.plaintext }}
+        {{- end }}
+        {{- end }}
+        env:
+        {{- if .Values.broker.advertisedPodIP }}
+        - name: advertisedAddress
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        {{- end }}
+        envFrom:
+        - configMapRef:
+            name: "{{ .currentComponentFull }}"
+        volumeMounts:
+          - name: tmp
+            mountPath: /pulsar/tmp
+          - name: conf
+            mountPath: /pulsar/conf
+          - name: download
+            mountPath: /pulsar/download
+          - name: logs
+            mountPath: /pulsar/logs
+          - name: ssl
+            mountPath: /pulsar/ssl
+          - name: vault-token
+            mountPath: /var/run/secrets/boostport.com
+          {{- include "pulsar.coso.init.volumeMounts" . | nindent 10 }}
+          {{- include "pulsar.coso.externalcert.volumeMounts" . | nindent 10 }}
+          {{- include "pulsar.broker.log.volumeMounts" . | nindent 10 }}
+          {{- include "pulsar.broker.certs.volumeMounts" . | nindent 10 }}
+          {{- include "pulsar.broker.runtime.volumeMounts" . | nindent 10 }}
+          {{- include "pulsar.broker.offload.volumeMounts" . | nindent 10 }}
+          {{- include "pulsar.function.worker.config.volumeMounts" . | nindent 10 }}
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: conf
+        emptyDir: {}
+      - name: ssl
+        emptyDir: {}
+      - name: logs
+        emptyDir: {}
+      - name: download
+        emptyDir: {}
+      - name: vault-token
+        emptyDir: {}
+      {{- include "pulsar.coso.init.volumes" . | nindent 6 }}
+      {{- include "pulsar.coso.externalcert.volumes" . | nindent 6 }}
+      {{- include "pulsar.broker.certs.volumes" . | nindent 6 }}
+      {{- include "pulsar.broker.log.volumes" . | nindent 6 }}
+      {{- include "pulsar.broker.runtime.volumes" . | nindent 6 }}
+      {{- include "pulsar.broker.offload.volumes" . | nindent 6 }}
+      {{- include "pulsar.function.worker.config.volumes" . | nindent 6 }}
+{{- end }}

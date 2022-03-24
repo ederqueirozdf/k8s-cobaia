@@ -1,0 +1,47 @@
+{{- if .Values.global.rbac.serviceAccountCreate }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "autopass.rbac.sa.name" . }}
+  namespace: {{ .Release.Namespace }}
+imagePullSecrets:
+- name: {{ .Values.global.docker.imagePullSecret | default "registrypullsecret" }}
+{{- end }}
+
+{{- if .Values.global.rbac.roleCreate }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "autopass.rbac.role.name" . }}
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - serviceaccounts
+  - configmaps
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "autopass.rbac.sa.name" . }}:{{ include "autopass.rbac.role.name" . }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "autopass.rbac.role.name" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "autopass.rbac.sa.name" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

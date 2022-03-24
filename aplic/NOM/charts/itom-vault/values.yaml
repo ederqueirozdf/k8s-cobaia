@@ -1,0 +1,84 @@
+# Default values for itom-nginx-ingress-controller.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Consuming charts can declare a namePrefix which will cause all names (service names, deployment names, etc.)
+# to be prefixed with the specified value, instead of default "itom" prefix.  This enables multiple
+# instances of the chart in a single namespace.
+# default value is itom
+namePrefix: itom
+
+# Injectables
+nodeSelector:
+
+# Consuming charts can declare they want backwards-compatible service name, i.e. prefixed with
+# Helm "Release.Name".
+#
+backwardsCompatServiceName: false
+
+deployment:
+  rbac:
+    serviceAccountName:
+  tolerations: []
+
+global:
+  ### all the key-value in k8s service will be written into the vault secrets which is correlated to the approle "<namespace>-<approle-name>"
+  ## secrets can be separted by comma like "init-data1,init-data2" or "init-data1:approle-name1,init-data2:approle-name2". No space/tab is allowed.
+  ## if not specified approle-name, default value is "default"
+  ##     e.g. "init-data1:default,init-data2:baseinfra"
+  ##          "init-data1,init-data2:baseinfra"
+  ##          "init-data1,init-data2"
+  initSecrets:
+
+  docker:
+    # set the global.docker.registry and orgName to your internal Docker registry/org
+    registry: localhost:5000
+    orgName: hpeswitom
+    imagePullSecret: ""
+    imagePullPolicy: IfNotPresent
+
+  # User ID and group ID to run as
+  securityContext:
+    user: 1999
+    fsGroup: 1999
+  cluster:
+    k8sProvider: "cdf"
+    tolerations: []
+
+  vault:
+    #Required
+    #realm configure can be separted by comma like : "RID:365,RE:365"
+    #format: "realm name:ttl(day)"
+    realmList: "RID:365,RE:365"
+
+  # persistence.enabled=true means that the PVCs are expected to be dynamically created by the composition chart
+  # Otherwise, persistence.dataVolumeClaim is a persistent volume claim for storing data files.
+  # If all of the above are undefined, then temporary ephemeral storage will be created (only if isDemo=true).
+  #persistence:
+  #  dataVolumeClaim: itom-vol-claim
+  persistence:
+    enabled: false
+
+  # if isDemo is true, this will allow use of ephemeral storage and other POC concepts
+  isDemo: false
+
+  rbac:
+    serviceAccountCreate: true
+    roleCreate: true
+
+vault:
+  image: vault
+  imageTag: 0.19.0-0074
+  deploymentType: "CHART"
+  vaultBackend: "file"
+  vaultReplicas: "1"
+  k8sInstallMode: "CLASSIC"
+  serviceAccount:
+  # if true, migrate backend from etcd to file
+  # notice that vaultBackend should be set 'file' and vaultReplicas should be set 1
+  # make sure there is no vault instance is running before migration
+  # otherwise, data loss might happen
+  migrate: false
+
+nameOverride: ""
+fullnameOverride: ""

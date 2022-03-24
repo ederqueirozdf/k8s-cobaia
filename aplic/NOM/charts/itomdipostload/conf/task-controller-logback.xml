@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<configuration scan="true" scanPeriod="30 seconds">
+
+    <property name="FILE_LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %5p ${PID:- } [%t] --- %-40.40logger{39} %X{Context}[%X{TaskDetails}]: %m%n"/>
+
+    <appender name="LogFileAppender" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <!--See also http://logback.qos.ch/manual/appenders.html#RollingFileAppender-->
+        <Append>true</Append>
+        <File>${TG_NFS_LOG_DIR}/taskcontroller.log</File>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <FileNamePattern>${TG_NFS_LOG_DIR}/taskcontroller-%d{yyyy-MM-dd}.log.%i.gz</FileNamePattern>
+            <!-- each file should be at most 100MB, keep 60 days of history, but at most 2GB -->
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>60</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="ConsoleAppender" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="com.microfocus" level="INFO" additivity="false">
+        {{- if and (eq .Values.dipostload.config.taskGenerator.logConfigFromConfigmap true) (eq (.Values.global.di.logging.useFile | toString) "false") }}
+        <appender-ref ref="ConsoleAppender"/>
+        {{- else }}
+        <appender-ref ref="LogFileAppender"/>
+        {{- end }}
+    </logger>
+    <logger name="com.swgrp.itomdi" level="INFO" additivity="false">
+        {{- if and (eq .Values.dipostload.config.taskGenerator.logConfigFromConfigmap true) (eq (.Values.global.di.logging.useFile | toString) "false") }}
+        <appender-ref ref="ConsoleAppender"/>
+        {{- else }}
+        <appender-ref ref="LogFileAppender"/>
+        {{- end }}
+    </logger>
+
+    <logger name="org.springframework.boot.autoconfigure.flyway" level="DEBUG" additivity="false">
+        {{- if and (eq .Values.dipostload.config.taskGenerator.logConfigFromConfigmap true) (eq (.Values.global.di.logging.useFile | toString) "false") }}
+        <appender-ref ref="ConsoleAppender"/>
+        {{- else }}
+        <appender-ref ref="LogFileAppender"/>
+        {{- end }}
+    </logger>
+
+    <root level="WARN">
+        {{- if and (eq .Values.dipostload.config.taskGenerator.logConfigFromConfigmap true) (eq (.Values.global.di.logging.useFile | toString) "false") }}
+        <appender-ref ref="ConsoleAppender"/>
+        {{- else }}
+        <appender-ref ref="LogFileAppender"/>
+        {{- end }}
+    </root>
+</configuration>

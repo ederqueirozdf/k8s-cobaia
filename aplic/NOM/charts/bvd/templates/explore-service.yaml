@@ -1,0 +1,22 @@
+{{- if .Values.params.capability.uif }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: bvd-explore
+  namespace: {{ .Release.Namespace }}
+  labels:
+    service: bvd-explore
+    app.kubernetes.io/name: bvd-explore
+    app.kubernetes.io/managed-by: bvd-config
+    app.kubernetes.io/version: {{ .Values.bvd.imageTag }}
+    itom.microfocus.com/capability: bvd
+    tier.itom.microfocus.com/exploreService: exploreService
+spec:
+  ports:
+  - name: bvd-explore
+    port: 4000
+    protocol: TCP
+    targetPort: 4000
+  selector:
+    service: bvd-explore
+{{- end }}

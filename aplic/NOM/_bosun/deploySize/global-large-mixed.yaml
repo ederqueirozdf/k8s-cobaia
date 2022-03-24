@@ -1,0 +1,44 @@
+# This is the resource specification for Large Global Manager deployment in mixed mode
+global:
+  nom:
+    deploySize: global-large
+
+bvd:
+  quexserv:
+    replicaCount: 3
+
+nommetricstransform:
+  baseline:
+    jvmMin: "8g"
+    jvmMax: "8g"
+    cosoTransformationConcurrency: "20"
+    cosoPulsarAckTimeout: "40"
+    cosoTransformationQueueLimit: "30"
+    maxMessageCount: "15000"
+    dbPersistCycleInterval: "30"
+  deployment:
+    replicas: 5
+  resources:
+    limits:
+      cpu: "7.0"
+      memory: "10Gi"
+
+itomdipulsar:
+  bookkeeper:
+    volumes:
+      ledgers:
+        size: "280Gi"
+    replicaCount: 5
+  broker:
+    replicaCount: 5
+
+itom-di-udx-scheduler:
+  scheduler:
+    configData:
+      scheduler:
+        frameDuration: "00:00:45"
+      copyRead:
+        timeout: 1500
+        # Valid units are minutes|seconds|milliseconds|microseconds
+        units: milliseconds
+

@@ -1,0 +1,13 @@
+# This is the resource specification for Medium size (containerized deployment)
+global:
+  nom:
+    deploySize: medium
+nommetricstransform:
+  baseline:
+    jvmMax: "3072m"
+  deployment:
+    replicas: 2
+  resources:
+    limits:
+      cpu: "4.0"
+      memory: "4000Mi"

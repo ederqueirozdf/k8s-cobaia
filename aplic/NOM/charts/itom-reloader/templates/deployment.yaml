@@ -1,0 +1,146 @@
+{{ $namePrefix := include "namePrefix" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $namePrefix }}-reloader
+  annotations:
+    deployment.microfocus.com/default-replica-count: "1"
+    deployment.microfocus.com/runlevel: UP
+    {{- if .Values.deployment.annotations }}
+    {{- toYaml .Values.deployment.annotations | nindent 4 }}
+    {{- end }}
+  labels:
+  {{- include "itom-reloader.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.deployment.replicas }}
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+    {{- include "itom-reloader.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- if .Values.deployment.pod.annotations }}
+      annotations:
+      {{- toYaml .Values.deployment.pod.annotations | nindent 8 }}
+      {{- end }}
+      labels:
+      {{- include "itom-reloader.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.deployment.nodeSelector }}
+      nodeSelector:
+      {{- toYaml .Values.deployment.nodeSelector | nindent 8 }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - {{ include "namePrefix" . }}-reloader
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+      {{- if .Values.deployment.tolerations }}
+      tolerations:
+      {{- toYaml .Values.deployment.tolerations | nindent 8 }}
+      {{- end }}
+      containers:
+        - image: "{{ .Values.global.docker.registry}}/{{ .Values.global.docker.orgName }}/{{ .Values.reloader.image }}:{{ .Values.reloader.imageTag }}"
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          name: itom-reloader
+          env:
+            {{- range $name, $value := .Values.reloader.env.open }}
+            {{- if not (empty $value) }}
+            - name: {{ $name | quote }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- range $name, $value := .Values.reloader.env.secret }}
+            {{- if not ( empty $value) }}
+            - name: {{ $name | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $namePrefix }}-reloader
+                  key: {{ $name | quote }}
+            {{- end }}
+            {{- end }}
+            {{- range $name, $value := .Values.reloader.env.field }}
+            {{- if not ( empty $value) }}
+            - name: {{ $name | quote }}
+              valueFrom:
+                fieldRef:
+                  fieldPath: {{ $value | quote}}
+            {{- end }}
+            {{- end }}
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - name: http
+              containerPort: 9090
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: http
+          {{- if eq .Values.reloader.readOnlyRootFileSystem true }}
+          volumeMounts:
+            - mountPath: /tmp/
+              name: tmp-volume
+          {{- end }}
+          {{- if or (.Values.reloader.logFormat) (.Values.reloader.ignoreSecrets) (.Values.reloader.ignoreConfigMaps) (.Values.reloader.custom_annotations)  }}
+          args:
+            {{- if .Values.reloader.logFormat }}
+            - "--log-format={{ .Values.reloader.logFormat }}"
+            {{- end }}
+            {{- if .Values.reloader.ignoreSecrets }}
+            - "--resources-to-ignore=secrets"
+            {{- end }}
+            {{- if .Values.reloader.ignoreConfigMaps }}
+            - "--resources-to-ignore=configMaps"
+            {{- end }}
+            {{- if .Values.reloader.custom_annotations }}
+            {{- if .Values.reloader.custom_annotations.configmap }}
+            - "--configmap-annotation"
+            - "{{ .Values.reloader.custom_annotations.configmap }}"
+            {{- end }}
+            {{- if .Values.reloader.custom_annotations.secret }}
+            - "--secret-annotation"
+            - "{{ .Values.reloader.custom_annotations.secret }}"
+            {{- end }}
+            {{- if .Values.reloader.custom_annotations.auto }}
+            - "--auto-annotation"
+            - "{{ .Values.reloader.custom_annotations.auto }}"
+            {{- end }}
+            {{- if .Values.reloader.custom_annotations.autoSearch }}
+            - "--auto-search-annotation"
+            - "{{ .Values.reloader.custom_annotations.autoSearch }}"
+            {{- end }}
+            {{- if .Values.reloader.custom_annotations.searchMatch }}
+            - "--search-match-annotation"
+            - "{{ .Values.reloader.custom_annotations.searchMatch }}"
+            {{- end }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.deployment.resources }}
+          resources:
+          {{- toYaml .Values.deployment.resources | nindent 12 }}
+          {{- end }}
+      securityContext:
+        runAsUser: {{ default 1999 .Values.global.securityContext.user }}
+        runAsGroup: {{ default 1999 .Values.global.securityContext.fsGroup }}
+        fsGroup: {{ default 1999 .Values.global.securityContext.fsGroup }}
+        supplementalGroups: [{{ default 1999 .Values.global.securityContext.fsGroup }}]
+      serviceAccountName: {{ $namePrefix }}-cdf-reloader
+      {{- if eq .Values.reloader.readOnlyRootFileSystem true }}
+      volumes:
+        - emptyDir: { }
+          name: tmp-volume
+      {{- end }}
+

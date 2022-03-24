@@ -1,0 +1,230 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+{{ if .Values.components.autorecovery }}
+{{- include "pulsar.setCurrentComponentFull" (set . "currentComponent" .Values.autorecovery.component) -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: "{{ .currentComponentFull }}"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pulsar.standardLabels" . | nindent 4 }}
+  annotations:
+    {{- include "pulsar.template.annotations" . | nindent 4 }}
+spec:
+  serviceName: "{{ .currentComponentFull }}"
+  replicas: {{ .Values.autorecovery.replicaCount }}
+  updateStrategy:
+    type: RollingUpdate
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      {{- include "pulsar.matchLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pulsar.standardLabels" . | nindent 8 }}
+      annotations:
+        pod.boostport.com/vault-init-container: generate-certificates
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.autorecovery.ports.http }}"
+        {{- if .Values.autorecovery.autoRollDeployment }}
+        checksum/config: {{ include (print $.Template.BasePath "/bookkeeper/bookkeeper-autorecovery-configmap.yaml") . | sha256sum }}
+        {{- end }}
+        {{- include "pulsar.template.annotations" . | nindent 8 }}
+{{- with .Values.autorecovery.annotations }}
+{{ toYaml . | indent 8 }}
+{{- end }}
+    spec:
+      securityContext:
+        runAsUser: {{ .Values.global.securityContext.user | int64}}
+        runAsGroup: {{ .Values.global.securityContext.group | int64 }}
+        fsGroup: {{ .Values.global.securityContext.fsGroup | int64 }}
+      {{- with ( coalesce .Values.nodeSelector .Values.global.nodeSelector ) }}
+      nodeSelector:
+        {{ toYaml . }}
+      {{- end }}
+    {{- if .Values.autorecovery.tolerations }}
+      tolerations:
+{{- with .Values.autorecovery.tolerations }}
+{{ toYaml . | indent 8 }}
+{{- end }}
+    {{- end }}
+
+      serviceAccount: {{ .Values.deployment.rbac.serviceAccount | default "itomdipulsar-sa" }}
+      serviceAccountName: {{ .Values.deployment.rbac.serviceAccount | default "itomdipulsar-sa" }}
+
+      affinity:
+        {{- if and .Values.affinity.anti_affinity .Values.autorecovery.affinity.anti_affinity}}
+        podAntiAffinity:
+          {{ .Values.autorecovery.affinity.type }}:
+          {{ if eq .Values.autorecovery.affinity.type "requiredDuringSchedulingIgnoredDuringExecution"}}
+          - labelSelector:
+              matchExpressions:
+              - key: "app"
+                operator: In
+                values:
+                - "{{ template "pulsar.name" . }}"
+              - key: "release"
+                operator: In
+                values:
+                - {{ .Release.Name }}
+              - key: "component"
+                operator: In
+                values:
+                - {{ .currentComponent }}
+            topologyKey: "kubernetes.io/hostname"
+          {{ else }}
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: "app"
+                      operator: In
+                      values:
+                      - "{{ template "pulsar.name" . }}"
+                    - key: "release"
+                      operator: In
+                      values:
+                      - {{ .Release.Name }}
+                    - key: "component"
+                      operator: In
+                      values:
+                      - {{ .currentComponent }}
+                topologyKey: "kubernetes.io/hostname"
+          {{ end }}
+        {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.autorecovery.gracePeriod }}
+      initContainers:
+    {{- include "helm-lib.waitForVault" . | nindent 6 }}
+      # This init container will generate certificates.
+      - name: generate-certificates
+    {{- if and .Values.global.vaultInit.registry .Values.global.vaultInit.orgName }}
+        image: {{ .Values.global.vaultInit.registry }}/{{ .Values.global.vaultInit.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+    {{- else}}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+    {{- end}}
+        # command: ["sh", "-c"]
+        # args:
+        # - >
+        #   sleep 5
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: CERT_COMMON_NAME
+            value: "Realm:RID,Common_Name:{{ .Values.global.externalAccessHost }},Additional_SAN:{{ .currentComponentFull }};Realm:RE,Common_Name:{{ .Values.global.externalAccessHost }},Additional_SAN:{{ .currentComponentFull }}/{{ .currentComponentFull }}.{{ .Release.Namespace }}/{{ .currentComponentFull }}.{{ .Release.Namespace }}.svc"
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+      # This initContainer will wait for bookkeeper initnewcluster to complete
+      # before deploying the bookies
+      - name: pulsar-bookkeeper-verify-clusterid
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.pulsar.image }}:{{ .Values.pulsar.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        command: ["sh", "-c"]
+        args:
+        - >
+          source bin/coso-init.sh;
+          {{- include "pulsar.autorecovery.init.verify_cluster_id" . | nindent 10 }}
+        envFrom:
+        - configMapRef:
+            name: "{{ .currentComponentFull }}"
+        volumeMounts:
+        - name: tmp
+          mountPath: /pulsar/tmp
+        - name: conf
+          mountPath: /pulsar/conf
+        - name: logs
+          mountPath: /pulsar/logs
+        - name: ssl
+          mountPath: /pulsar/ssl
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+        {{- include "pulsar.coso.init.volumeMounts" . | nindent 8 }}
+        {{- include "pulsar.autorecovery.certs.volumeMounts" . | nindent 8 }}
+{{- with .Values.common.extraInitContainers }}
+{{ toYaml . | indent 6 }}
+{{- end }}
+{{- with .Values.autorecovery.extraInitContainers }}
+{{ toYaml . | indent 6 }}
+{{- end }}
+      containers:
+      - name: certificate-renew
+        {{- if and .Values.global.vaultRenew.registry .Values.global.vaultRenew.orgName }}
+        image: {{ .Values.global.vaultRenew.registry }}/{{ .Values.global.vaultRenew.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+        {{- else }}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+        {{- end }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/boostport.com
+      - name: "{{ .currentComponentFull }}"
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.pulsar.image }}:{{ .Values.pulsar.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+      {{- if .Values.autorecovery.resources }}
+        resources:
+{{ toYaml .Values.autorecovery.resources | indent 10 }}
+      {{- end }}
+        command: ["sh", "-c"]
+        args:
+        - >
+          source bin/coso-init.sh;
+          bin/apply-config-from-env.py conf/bookkeeper.conf;
+          bin/bookkeeper autorecovery
+        ports:
+        - name: http
+          containerPort: {{ .Values.autorecovery.ports.http }}
+        envFrom:
+        - configMapRef:
+            name: "{{ .currentComponentFull }}"
+        volumeMounts:
+        - name: tmp
+          mountPath: /pulsar/tmp
+        - name: conf
+          mountPath: /pulsar/conf
+        - name: logs
+          mountPath: /pulsar/logs
+        - name: ssl
+          mountPath: /pulsar/ssl
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+        {{- include "pulsar.coso.init.volumeMounts" . | nindent 8 }}
+        {{- include "pulsar.autorecovery.certs.volumeMounts" . | nindent 8 }}
+        {{- include "pulsar.autorecovery.log.volumeMounts" . | nindent 8 }}
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: conf
+        emptyDir: {}
+      - name: ssl
+        emptyDir: {}
+      - name: logs
+        emptyDir: {}
+      - name: vault-token
+        emptyDir: {}
+      {{- include "pulsar.coso.init.volumes" . | nindent 6 }}
+      {{- include "pulsar.autorecovery.certs.volumes" . | nindent 6 }}
+      {{- include "pulsar.autorecovery.log.volumes" . | nindent 6 }}
+{{- end }}

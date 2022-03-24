@@ -1,0 +1,41 @@
+{{- if .Values.global.rbac.pspEnabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: itom-di-vertica-psp-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    helm.sh/chart: itom-di-vertica
+    app.kubernetes.io/name: itom-di-vertica
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+rules:
+- apiGroups:
+    - policy
+  resources:
+    - podsecuritypolicies
+  resourceNames:
+    - itom-di-vertica-psp
+  verbs:
+    - use
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: itom-di-vertica-psp-rolebinding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    helm.sh/chart: itom-di-vertica
+    app.kubernetes.io/name: itom-di-vertica
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.deployment.rbac.serviceAccount | default "itom-di-vertica-sa" }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: itom-di-vertica-psp-role
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

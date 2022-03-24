@@ -1,0 +1,219 @@
+{{ $namePrefix := include "namePrefix" . }}
+
+{{- if .Capabilities.APIVersions.Has "networking.k8s.io/v1/Ingress" }}
+apiVersion: networking.k8s.io/v1
+{{ else if .Capabilities.APIVersions.Has "networking.k8s.io/v1beta1/Ingress" }}
+apiVersion: networking.k8s.io/v1beta1
+{{ else }}
+apiVersion: extensions/v1beta1
+{{ end -}}
+kind: Ingress
+metadata:
+  name: {{ $namePrefix }}-idm-admin
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/secure-backends: "true"
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/affinity: cookie
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/backend-protocol: HTTPS
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/session-cookie-hash: sha1
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/session-cookie-name: idm-admin-route
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/session-cookie-path: /idm-admin
+spec:
+  tls:
+    - hosts:
+        - {{ required "IDM Ingress: required value not defined: global.externalAccessHost" .Values.global.externalAccessHost }}
+      secretName: {{ .Values.ingress.tls.secretName | default "nginx-default-secret" | quote }}
+  rules:
+  - http:
+      paths:
+      - path: /idm-admin
+        {{- if .Capabilities.APIVersions.Has "networking.k8s.io/v1/Ingress" }}
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $namePrefix }}-idm-admin
+            port:
+              number: {{ default "18443" .Values.service.portssl }}
+        {{- else }}
+        backend:
+          serviceName: {{ $namePrefix }}-idm-admin
+          servicePort: {{ default "18443" .Values.service.portssl }}
+        {{- end }}
+    {{- if .Values.global.setFqdnInIngress }}
+    host: {{ .Values.global.externalAccessHost }}
+    {{- end }}
+---
+{{- if .Capabilities.APIVersions.Has "networking.k8s.io/v1/Ingress" }}
+apiVersion: networking.k8s.io/v1
+{{ else if .Capabilities.APIVersions.Has "networking.k8s.io/v1beta1/Ingress" }}
+apiVersion: networking.k8s.io/v1beta1
+{{ else }}
+apiVersion: networking.k8s.io/v1beta1
+{{ end -}}
+kind: Ingress
+metadata:
+  name: {{ $namePrefix }}-idm-svc
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/secure-backends: "true"
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/affinity: "cookie"
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/session-cookie-hash: "sha1"
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/backend-protocol: "HTTPS"
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/session-cookie-name: idm-svc-route
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/session-cookie-path: /idm-service
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/session-cookie-samesite: None
+spec:
+  tls:
+    - hosts:
+        - {{ required "IDM Ingress: required value not defined: global.externalAccessHost" .Values.global.externalAccessHost }}
+      secretName: {{ .Values.ingress.tls.secretName | default "nginx-default-secret" | quote }}
+  rules:
+  - http:
+      paths:
+      {{- if .Capabilities.APIVersions.Has "networking.k8s.io/v1/Ingress" }}
+      - path: /idm-service/idm
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $namePrefix }}-idm-svc
+            port:
+              number: {{ default "18443" .Values.service.portssl }}
+      - path: /idm-service/v2.0
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $namePrefix }}-idm-svc
+            port:
+              number: {{ default "18443" .Values.service.portssl }}
+      - path: /idm-service/v3.0
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $namePrefix }}-idm-svc
+            port:
+              number: {{ default "18443" .Values.service.portssl }}
+      - path: /idm-service/api
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $namePrefix }}-idm-svc
+            port:
+              number: {{ default "18443" .Values.service.portssl }}
+      - path: /idm-service/saml
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $namePrefix }}-idm-svc
+            port:
+              number: {{ default "18443" .Values.service.portssl }}
+      - path: /idm-service/oidc
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $namePrefix }}-idm-svc
+            port:
+              number: {{ default "18443" .Values.service.portssl }}
+      {{- else }}
+      - path: /idm-service/idm
+        backend:
+          serviceName: {{ $namePrefix }}-idm-svc
+          servicePort: {{ default "18443" .Values.service.portssl }}
+      - path: /idm-service/v2.0
+        backend:
+          serviceName: {{ $namePrefix }}-idm-svc
+          servicePort: {{ default "18443" .Values.service.portssl }}
+      - path: /idm-service/v3.0
+        backend:
+          serviceName: {{ $namePrefix }}-idm-svc
+          servicePort: {{ default "18443" .Values.service.portssl }}
+      - path: /idm-service/api
+        backend:
+          serviceName: {{ $namePrefix }}-idm-svc
+          servicePort: {{ default "18443" .Values.service.portssl }}
+      - path: /idm-service/saml
+        backend:
+          serviceName: {{ $namePrefix }}-idm-svc
+          servicePort: {{ default "18443" .Values.service.portssl }}
+      - path: /idm-service/oidc
+        backend:
+          serviceName: {{ $namePrefix }}-idm-svc
+          servicePort: {{ default "18443" .Values.service.portssl }}
+      {{- end }}
+    {{- if .Values.global.setFqdnInIngress }}
+    host: {{ .Values.global.externalAccessHost }}
+    {{- end }}
+  # client certificate authentication
+  - host: {{ $namePrefix }}-idm-svc
+    http:
+      paths:
+      {{- if .Capabilities.APIVersions.Has "networking.k8s.io/v1/Ingress" }}
+      - path: /idm-service/idm
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $namePrefix }}-idm-svc
+            port:
+              number: {{ default "18444" .Values.service.portcca }}
+      - path: /idm-service/v2.0
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $namePrefix }}-idm-svc
+            port:
+              number: {{ default "18444" .Values.service.portcca }}
+      - path: /idm-service/v3.0
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $namePrefix }}-idm-svc
+            port:
+              number: {{ default "18444" .Values.service.portcca }}
+      - path: /idm-service/api
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $namePrefix }}-idm-svc
+            port:
+              number: {{ default "18444" .Values.service.portcca }}
+      - path: /idm-service/saml
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $namePrefix }}-idm-svc
+            port:
+              number: {{ default "18444" .Values.service.portcca }}
+      - path: /idm-service/oidc
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $namePrefix }}-idm-svc
+            port:
+              number: {{ default "18444" .Values.service.portcca }}
+      {{ else }}
+      - path: /idm-service/idm
+        backend:
+          serviceName: {{ $namePrefix }}-idm-svc
+          servicePort: {{ default "18444" .Values.service.portcca }}
+      - path: /idm-service/v2.0
+        backend:
+          serviceName: {{ $namePrefix }}-idm-svc
+          servicePort: {{ default "18444" .Values.service.portcca }}
+      - path: /idm-service/v3.0
+        backend:
+          serviceName: {{ $namePrefix }}-idm-svc
+          servicePort: {{ default "18444" .Values.service.portcca }}
+      - path: /idm-service/api
+        backend:
+          serviceName: {{ $namePrefix }}-idm-svc
+          servicePort: {{ default "18444" .Values.service.portcca }}
+      - path: /idm-service/saml
+        backend:
+          serviceName: {{ $namePrefix }}-idm-svc
+          servicePort: {{ default "18444" .Values.service.portcca }}
+      - path: /idm-service/oidc
+        backend:
+          serviceName: {{ $namePrefix }}-idm-svc
+          servicePort: {{ default "18444" .Values.service.portcca }}
+      {{ end -}}

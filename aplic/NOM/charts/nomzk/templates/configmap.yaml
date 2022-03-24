@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nomzk-cm
+data:
+  jvm.min.heap: {{.Values.nomzk.config.jvmMinHeap }}
+  jvm.max.heap: {{.Values.nomzk.config.jvmMaxHeap }}
+  tick: {{.Values.nomzk.config.tick | quote }}
+  init: {{.Values.nomzk.config.init | quote }}
+  sync: {{.Values.nomzk.config.sync | quote }}
+  client.cnxns: {{.Values.nomzk.config.clientCnxns | quote }}
+  snap.retain: {{.Values.nomzk.config.snapRetain | quote }}
+  purge.interval: {{.Values.nomzk.config.purgeInterval | quote }}

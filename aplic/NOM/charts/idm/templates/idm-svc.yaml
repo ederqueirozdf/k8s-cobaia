@@ -1,0 +1,60 @@
+{{ $namePrefix := include "namePrefix" . }}
+
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $namePrefix }}-idm-admin
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - name: ssl
+    port: {{ default "18443" .Values.service.portssl }}
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    app: {{ $namePrefix }}-idm-app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $namePrefix }}-idm-svc
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.global.prometheus.deployPrometheusConfig }}
+  labels:
+    app: {{ $namePrefix }}-idm-app
+  annotations:
+    prometheus.io/scrape: "true"
+{{- end }}
+spec:
+  sessionAffinity: ClientIP
+  ports:
+    - port: {{ default "18443" .Values.service.portssl }}
+      targetPort: 8443
+      protocol: TCP
+      name: ssl
+    - port: {{ default "18444" .Values.service.portcca }}
+      targetPort: 8444
+      protocol: TCP
+      name: ssl2
+  selector:
+    app: {{ $namePrefix }}-idm-app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $namePrefix }}-idm
+  namespace: {{ .Release.Namespace }}
+spec:
+  sessionAffinity: ClientIP
+  ports:
+    - port: {{ default "443" .Values.service.portssl }}
+      targetPort: 8443
+      protocol: TCP
+      name: ssl
+    - port: {{ default "444" .Values.service.portcca }}
+      targetPort: 8444
+      protocol: TCP
+      name: ssl2
+  selector:
+    app: {{ $namePrefix }}-idm-app

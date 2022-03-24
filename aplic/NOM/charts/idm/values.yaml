@@ -1,0 +1,249 @@
+# Configuration file for the IDM chart #
+########################################
+
+# Consuming charts can declare a namePrefix which will cause all names (service names, deployment names, etc.)
+# to be prefixed with the specified value, instead of default "itom" prefix.  This enables multiple
+# instances of the chart in a single namespace.
+namePrefix:
+
+# Consuming charts can declare they want backwards-compatible service name, i.e. prefixed with Helm "Release.Name".
+backwardsCompatServiceName: false
+
+# Injectable - Assign IDM pod to cluster nodes
+# - if Values.nodeSelector -> use Values.nodeSelector
+#   else if .global.nodeSelector -> use Values.global.nodeSelector
+#   else do not set nodeSelectors in deployment yaml
+nodeSelector: {}
+
+# Vault secret name that holds the Ingress tls key(s)
+# - default: nginx-default-secret
+ingress:
+  tls:
+    secretName:
+
+# Configurable health checks against the /healthy and /ready endpoints
+livenessProbe:
+  initialDelaySeconds: 180
+  periodSeconds: 30
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 30
+
+readinessProbe:
+  initialDelaySeconds: 180
+  periodSeconds: 30
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+# IDM service
+service:
+  # default service port: 18443
+  portssl:
+  # default service port for client certificate authentication: 18444
+  portcca:
+
+deployment:
+  rbac:
+    serviceAccountName:
+  tolerations: []
+
+  # Deployment (subchart) specific values for DB parameters.  But all should be empty values in this file.
+  database:
+    #optional
+    schema:
+    dbName: cdfidmdb
+    user: cdfidm
+
+  replicas: 2
+  minAvailable: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 600Mi
+    limits:
+      cpu: 2
+      memory: 1536Mi
+
+  # Define the name of the existing config map that holds the seeded data for IDM
+  # - default: idm-conf-file
+  seededConfigMapName:
+
+  # Provide tenant name - default: provider
+  tenant:
+  # Provide the secret name that holds the IDM signing key - default: VAULT_SIGNING_KEY
+  signingKeySecretName:
+  # Provide the secret name that holds the HPSSO init string - default: HPSSO_INIT_STRING_KEY
+  hpssoInitStrSecretName:
+  # Define the SSO init string encoding type in FIPS mode. If FIPS is not enabled, this parameter will be ignored.
+  # Valid value: Base64, Base64Url, Hex, Raw.
+  # Base64/Base64Url/Hex: init string in vault is encoded as Base64/Base64Url/Hex
+  # Raw: init string in vault is unencoded
+  hpssoInitStrEncoding: Raw
+  # Provide the domain name for IDM's HPSSO - default: global.externalAccessHost
+  hpssoDomainName: ""
+
+  # Resource config values to be updated
+  settings: |
+    # idm.saml.keystore.defaultKey.password:
+    # idm.saml.keystore.defaultPrivateKey:
+    # idm.saml.keystore.defaultCertificate:
+
+    # lwssoConfig.domain.mode:
+    # lwssoConfig.cookieName:
+    # lwssoConfig.initString:
+    # lwssoConfig.expirationPeriod:
+    # lwssoConfig.secureHTTPCookie:
+    # lwssoConfig.domain:
+
+    # idm.token.lifetime.minutes:
+    # idm.request_token.lifetime.minutes:
+    # idm.token.lifetime.minutesForMobile:
+    # idm.request_token.lifetime.minutesForMobile:
+
+global:
+  # These values take precedence over the ones under the deployment section
+  idm:
+    tenant:
+    signingKeySecretName:
+    hpssoInitStrSecretName:
+    hpssoDomainName:
+  database:
+    # If set it true, we need start internal postgres, all the other parameter will be ignored.
+    # For oracle, only internal=false supported
+    internal: true
+
+    ## Parameter below is for external database only
+
+    # For postgres, createDb=true means every service will create their own database/schema/user for internal/extenral postgres.
+    # For oracle, createDb=true means every service will create theie owner user/schema only(But right now, it is not supported)
+    # true means containers should create database themselves, and user provided must have permissions to create DB
+    createDb: false
+
+    # admin user should be used to create the service database/schema/user when "createDb"=true.
+    # If "createDb" is not true, it should be the one can be used to connect
+    admin:
+    adminPasswordKey:
+
+    # If not set, then default to postgresql
+    type:
+    host:
+    port:
+    user:
+    userPasswordKey:
+    dbName:
+
+    oracleConnectionString:
+    oracleServiceName:
+    oracleSid:
+
+    tlsEnabled:
+    tlsTruststore:
+
+  docker:
+    # set the global.docker.registry and orgName to your internal Docker registry/org
+    registry: localhost:5000
+    orgName: hpeswitom
+    imagePullSecret: ""
+    imagePullPolicy: IfNotPresent
+
+  # User ID and group ID to run as
+  securityContext:
+    user: "1999"
+    fsGroup: "1999"
+
+  # persistence.enabled=true means that the PVCs are expected to be dynamically created by the composition chart
+  # Otherwise, persistence.logVolumeClaim is a persistent volume claim for storing data files.
+  # If all of the above are undefined, then temporary ephemeral storage will be created (only if isDemo=true).
+  persistence:
+    enabled: false
+    logVolumeClaim:
+    dataVolumeClaim:
+
+  nginx:
+    # Change the NGINX annotation prefix used in the ingress resources - default: ingress.kubernetes.io
+    annotationPrefix:
+
+  # if isDemo is true, this will allow use of ephemeral storage and other POC concepts
+  isDemo: false
+
+  # Use FQDN in ingress
+  setFqdnInIngress: true
+  # Required: the 'externalAccessHost' must be set to the cluster external domain name
+  externalAccessHost: idm.homologacao.nuvem.hm.bb.com.br
+  # Required: the externalAccessPort is the port on which IDM is accessed from outside your cluster
+  externalAccessPort:
+
+  # FIPS mode
+  fipsMode: false
+
+  # Kubernetes cluster domain: Deprecated by global.cluster.kubernetesDomain
+  # - default: svc.cluster.local
+  kubernetesDomain:
+    name:
+  vaultAppRole:
+  cluster:
+    k8sProvider: ""  #classic: cdf cdf-aws cdf-azure,  BYOK: aws azure gcp generic openshift
+    kubernetesDomain:
+    tolerations: []
+
+  # Image definitions for common services
+  vaultRenew:
+    image: kubernetes-vault-renew
+    imageTag: 0.15.0-0038
+  vaultInit:
+    image: kubernetes-vault-init
+    imageTag: 0.15.0-0038
+  toolsBase:
+    image: itom-tools-base
+    imageTag: 1.0.0-0021
+
+  # proxy for idm to call external app url
+  proxy:
+    https_proxy:
+    http_proxy:
+    no_proxy:
+
+  rbac:
+    serviceAccountCreate: true
+    roleCreate: true
+
+  # Assigning pods to cluster nodes - see top-level nodeSelector index for details.
+  nodeSelector: {}
+  # Enable the monitor for idm metrics.
+  prometheus:
+    deployPrometheusConfig: false  #true = deploy scraping rules (ServiceMonitor, PodMonitor) and alerts (PrometheusRule).
+    deployGrafanaConfig: false  #true = deploy configmaps defining the Grafana dashboards
+    prometheusSelector:  #define the label(s) that Prometheus looks for when discovering rules.
+      prometheus_config: "1"
+    grafanaSelector:  #define the label(s) that Grafana looks for when discovering dashboards.
+      grafana_dashboard: "1"
+
+
+  monitor:
+    enable: false
+  # Audit Environment Configuration Properties.
+  audit:
+    auditServiceConfig:
+      # Audit Service Endpoint configuration.
+      auditEngineHostname:
+      auditEnginePort:
+      auditIntegrationTenant:
+      auditIntegrationUser: integration_admin
+      auditIntegrationUserPasswordKey: idm_integration_admin_password
+      # IDM Service endpoint configuration
+      auditIdmSvcHost:
+      auditIdmSvcPort:
+      # If 'createAuditEnabledForClient' attribute is set with value 'true' than audit client will attempt to connect to the Audit Service. If false this will be a NO-OP.
+      createAuditEnabledForClient: true
+      #If 'mock' attribute is set with value 'true' than log the audit payload to STDOUT(log file associated with STDOUT)
+      mock: false
+      #Controls the interval in milli seconds when audit client refreshes its configuration.
+      #Default value is 4 hours . If 'mock' is enabled than it is 5 mins.
+      auditClientConfigRefreshInterval:
+#####################
+# Image definitions
+#####################
+idm:
+  image: itom-idm
+  imageTag: 1.34.1-386

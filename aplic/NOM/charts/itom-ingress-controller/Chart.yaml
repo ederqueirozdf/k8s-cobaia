@@ -1,0 +1,8 @@
+apiVersion: v2
+appVersion: 0.20.0-0017
+dependencies:
+- name: helm-lib
+  version: 1.4.10
+description: Ingress Controller Helm chart
+name: itom-ingress-controller
+version: 1.5.49

@@ -1,0 +1,13 @@
+# This is the resource specification for Small size (classic deployment)
+global:
+  nom:
+    deploySize: small
+nommetricstransform:
+  baseline:
+    jvmMax: "2048m"
+  deployment:
+    replicas: 2
+  resources:
+    limits:
+      cpu: "4.0"
+      memory: "4000Mi"

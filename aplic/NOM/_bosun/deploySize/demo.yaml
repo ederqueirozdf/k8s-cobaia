@@ -1,0 +1,93 @@
+global:
+  nom:
+    deploySize: demo
+
+  localPersistence:
+    enabled: false
+  cosoMonitoring:
+    isSelected: false
+
+  #=========================================
+  #### DISABLE EXPRESS LOAD BEGINS HERE ####
+  #=========================================
+  #
+  # Disables Express Load feature in NOM if the environment does not use Traffic SPI.
+  #
+  # The "minio" feature is only used as part of the "traffic" feature,
+  # so if you disable traffic then you should also disable minio and expressLoadEnabled
+  #
+  # Additional configuration must be defined in itomdiadministration and itomdipulsar sections below.
+  #
+  # IMPORTANT: Ensure these settings are not overridden in another values.yaml used along with with this file
+  #
+  traffic:
+    isSelected: false
+  minio:
+    isSelected: false
+
+itomdiadministration:
+  diadmin:
+    config:
+      admin:
+        expressLoadEnabled: "false"
+
+  #========================================
+  ##### DISABLE EXPRESS LOAD ENDS HERE ####
+  #========================================
+
+itomdipulsar:
+  broker:
+    replicaCount: 1
+    configData:
+      managedLedgerDefaultEnsembleSize: "1"
+      managedLedgerDefaultWriteQuorum: "1"
+      managedLedgerDefaultAckQuorum: "1"
+  components:
+    autorecovery: false
+    bastion: false
+  zookeeper:
+    replicaCount: 1
+  proxy:
+    replicaCount: 1
+  bookkeeper:
+    replicaCount: 1
+
+nommetricstransform:
+  baseline:
+    jvmMax: "2048m"
+  deployment:
+    replicas: 1
+  resources:
+    limits:
+      cpu: "4.0"
+      memory: "3000Mi"
+idm:
+  deployment:
+    replicas: 1
+
+itom-ingress-controller:
+  replicas: 1
+
+nomapiserver:
+  deployment:
+    replicas: 1
+
+nom-telemetry:
+  deployment:
+    replicas: 1
+
+nomxui:
+  deployment:
+    replicas: 1
+
+# The default heap memory is 1 GB and memory limit is 4 GB for an itomdidp worker.
+itomdidp:
+  didataprocessor:
+    config:
+      dp:
+        worker:
+          heapMb: "1024"
+  resources:
+    worker:
+      limits:
+        memory: "4Gi"

@@ -1,0 +1,143 @@
+{{- if or .Values.global.bvd.isSelected .Values.global.services.sharedOpticReporting }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: import-bvd-dashboards-job-{{ randAlphaNum 7 | lower }}
+spec:
+  ttlSecondsAfterFinished: {{ .Values.global.jobs.ttlSecondsAfterFinished }}
+  backoffLimit: 120
+  template:
+    metadata:
+      labels:
+        name: import-bvd-dashboards-job
+      annotations:
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        pod.boostport.com/vault-init-container: install
+
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.global.securityContext.user }}
+        runAsGroup: {{ .Values.global.securityContext.fsGroup }}
+        fsGroup: {{ .Values.global.securityContext.fsGroup }}
+      serviceAccountName: itom-nom-reporting
+      restartPolicy: OnFailure
+      initContainers:
+      {{- include "helm-lib.waitForVault" . | nindent 6 }}
+
+      {{- $idmHost := include "helm-lib.getInternalIdmHost" . | default (printf "%s%s" .Values.deployment.idm.namePrefix .Values.deployment.idm.service)  -}}
+      {{- $idmPort := include "helm-lib.getInternalIdmPort" . | default .Values.deployment.idm.port -}}
+      {{- include "helm-lib.waitFor" (dict "service" $idmHost "port" $idmPort "Values" .Values) | nindent 6 }}
+
+      {{ $bvdHost := include "helm-lib.getInternalBvdHost" . | default "bvd-www" }}
+      {{ $bvdPort := include "helm-lib.getInternalBvdPort" . | default 4000  }}
+      {{ if not (eq $idmHost $bvdHost) }}
+      {{- include "helm-lib.waitFor" (dict "service" $bvdHost "port" $bvdPort "Values" .Values) | nindent 6 }}
+      {{ end }}
+
+      - name: install
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+        env:
+        {{- if .Values.global.vaultAppRole }}
+        - name: VAULT_ROLE_ID
+          value: {{ required "Required value is not defined: vaultRoleId" .Values.global.vaultRoleId | quote }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: /var/run/secrets/boostport.com
+          name: vault-token
+
+      containers:
+      - name: copy-dashboards
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.dashboardContent.image }}:{{ .Values.dashboardContent.imageTag }}
+        command: ["sh", "-c", "/scripts/copy-dashboards.sh"]
+        volumeMounts:
+        - name: bvd-conf-vol
+          mountPath: /bvd-content
+          subPath: bvd/var/bvd/dashboards
+
+# To download CLI and import BVD dashboards, the Job uses only the external access host of the cluster where BVD is running
+# For standalone NOM deployment, it will default to global.externalAccessHost/Port
+# For shared optic reporting, it will use the external/internal host and port
+      {{ $bvdHost := include "helm-lib.getInternalHost" . | default .Values.global.externalAccessHost | quote }}
+      {{ $bvdPort := include "helm-lib.getInternalPort" . | default .Values.global.externalAccessPort | quote }}
+
+      - name: import-legacy-bvd-dashboards
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.dashboardContent.image }}:{{ .Values.dashboardContent.imageTag }}
+        command: ["sh", "-c", "/scripts/download-bvd-cli.sh; /scripts/import-bvd-dashboards.sh"]
+        env:
+        - name: NOM_EDITION
+          value: ""
+        - name: BVD_HOST
+          value: {{ $bvdHost }}
+        - name: BVD_PORT
+          value: {{ $bvdPort }}
+        - name: BVD_USER_NAME    #Set value to name of user account that can view BVD dashboards
+          value: {{ .Values.bvdUser | quote }}
+        - name: BVD_PASSWORD_KEY #Set value to name of Vault key containing base64-encoded password
+          value: {{ .Values.bvdVaultKey | quote }}
+        - name: DECODE_BVD_PASSWORD #Set value to true if the password in BVD_PASSWORD_KEY uses base64 encoding
+          value: {{ .Values.isBvdPwdB64Encoded | quote  }}
+        - name: BVD_DASHBOARD_DIR
+          value: "/resources/dashboards/legacy-bvd"
+        volumeMounts:
+        - name: certs-volume
+          mountPath: /var/opt/OV/certs
+          subPath: data
+        - mountPath: /bvdCliCert
+          name: bvdclicert-dir
+
+
+      {{- if .Values.global.coso.isSelected }}
+      - name: import-bvd-dashboards
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.dashboardContent.image }}:{{ .Values.dashboardContent.imageTag }}
+        command: ["sh", "-c", "/scripts/download-bvd-cli.sh; /scripts/import-bvd-dashboards.sh"]
+        env:
+        - name: NOM_EDITION
+          value: {{ quote .Values.global.nom.edition | default "express" }}
+        - name: BVD_HOST
+          value: {{ $bvdHost }}
+        - name: BVD_PORT
+          value: {{ $bvdPort }}
+        - name: BVD_USER_NAME    #Set value to name of user account that can view BVD dashboards
+          value: {{ .Values.bvdUser | quote }}
+        - name: BVD_PASSWORD_KEY #Set value to name of Vault key containing base64-encoded password
+          value: {{ .Values.bvdVaultKey | quote }}
+        - name: DECODE_BVD_PASSWORD #Set value to true if the password in BVD_PASSWORD_KEY uses base64 encoding 
+          value: {{ .Values.isBvdPwdB64Encoded | quote  }}
+        - name: BVD_DASHBOARD_DIR
+          value: "/resources/dashboards/bvd"
+
+        volumeMounts:
+        - name: certs-volume
+          mountPath: /var/opt/OV/certs
+          subPath: data
+        - mountPath: /bvdCliCert
+          name: bvdclicert-dir
+      {{- end }}
+
+      volumes:
+      - name: vault-token
+        emptyDir: {}
+      - name: bvdclicert-dir
+        emptyDir: {}
+      {{- if .Values.global.tlsTruststore }}
+      - name: certs-volume
+        configMap:
+          name: {{ .Values.global.tlsTruststore }}
+      {{- end}}
+      - name: bvd-conf-vol
+          {{- include "helm-lib.pvcStorage" (dict "claim" "configVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+{{- else }}
+# we need to deploy SOMETHING in this file, to prevent errors during "helm delete" of empty file
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: import-bvd-dashboads-cm
+data:
+  bvd.isSelected: {{ .Values.global.bvd.isSelected | quote }}
+  coso.isSelected: {{ .Values.global.coso.isSelected | quote }}
+{{- end }}

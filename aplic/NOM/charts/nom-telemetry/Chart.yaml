@@ -1,0 +1,8 @@
+apiVersion: v2
+appVersion: 0.0.37
+dependencies:
+- name: helm-lib
+  version: 1.5.20
+description: Micro Focus Network Operations Management - Telemetry Collector
+name: nom-telemetry
+version: 0.0.37

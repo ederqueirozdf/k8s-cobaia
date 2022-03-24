@@ -1,0 +1,196 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: itom-di-administration-cm
+data:
+  admin.jvm.args: {{ .Values.diadmin.config.admin.jvmArgs }}
+  admin.client.auth.enabled: {{ .Values.diadmin.config.admin.clientAuthEnabled | quote }}
+  admin.use.external.ca.signed.certs: {{ .Values.diadmin.config.admin.useExternalCASignedCerts | quote }}
+  admin.service.base.url:  {{ .Values.diadmin.config.admin.serviceBaseUrl }}
+  admin.system.level.throttle: {{ .Values.diadmin.config.admin.systemLevelThrottle | quote }}
+  admin.permissible.request.limit: {{ .Values.diadmin.config.admin.permissibleRequestLimit | quote }}
+  admin.request.throttle.time: {{ .Values.diadmin.config.admin.requestThrottleTime | quote }}
+  admin.config.store.type: {{ .Values.diadmin.config.admin.configStoreType }}
+  # Following db details required if config store type is db
+  admin.db.ssl.enable: {{ .Values.global.vertica.tlsEnabled | quote }}
+  admin.config.store.hostnames: {{ template "vertica.host" .}}
+  admin.config.store.username: {{ template "vertica.rwuser" .}}
+  admin.config.store.token.key: {{ .Values.global.vertica.rwuserkey | quote }}
+  # Config store type can be filesystem | db
+  admin.config.store.db: {{ template "vertica.db" .}}
+  admin.config.store.port: {{ template "vertica.port" .}}
+
+  admin.logconfig.from.configmap:  {{ .Values.diadmin.config.admin.logConfigFromConfigmap | quote}}
+  {{- if .Values.diadmin.config.admin.logConfigFromConfigmap }}
+  admin.logconfig.log.to.file: {{ .Values.global.di.logging.useFile | quote}}
+  {{- end }}
+
+  vertica.resource.pool.name: {{ .Values.diadmin.config.vertica.resourcePoolName }}
+
+  #tenant and deployment for schema name
+  {{ include "validateTenantAndDeploymentForAdmin" . | required "The total length of tenant and deployment should not be more than 70 characters" }}
+
+  # If partition count for topic is less than 1 then,
+  # partition count for topic will be set based on the number of brokers configured at that instant
+  admin.topic.partition.count: {{ .Values.diadmin.config.pulsar.topicPartitionCount | quote }}
+
+  # Message bus
+  {{- if .Values.global.messageBus }}
+  admin.message.bus: {{ .Values.global.messageBus | quote }}
+  {{- else }}
+  admin.message.bus: {{ .Values.diadmin.config.admin.messageBus | quote }}
+  {{- end }}
+
+  # pulsar parameters
+  {{- if  .Values.global.pulsar.isKopEnabled  }}
+  {{- if .Values.global.pulsar.kopServiceName }}
+  pulsar.service.name: {{ .Values.global.pulsar.kopServiceName | quote }}
+  {{- else }}
+  pulsar.service.name: {{ .Values.diadmin.config.pulsar.kopServiceName | quote }}
+  {{- end }}
+  {{- else }}
+  {{- if .Values.global.pulsar.serviceName }}
+  pulsar.service.name: {{ .Values.global.pulsar.serviceName | quote }}
+  {{- else }}
+  pulsar.service.name: {{ .Values.diadmin.config.pulsar.serviceName | quote }}
+  {{- end }}
+  {{- end }}
+
+  {{- if .Values.global.pulsar.tlsEnable }}
+  pulsar.tls.enable: {{ .Values.global.pulsar.tlsEnable | quote }}
+  {{- else }}
+  pulsar.tls.enable: {{ .Values.diadmin.config.pulsar.tlsEnable | quote }}
+  {{- end }}
+
+  {{- if .Values.global.pulsar.tenant }}
+  pulsar.tenant: {{ .Values.global.pulsar.tenant | quote }}
+  {{- else }}
+  pulsar.tenant: {{ .Values.diadmin.config.pulsar.tenant | quote }}
+  {{- end }}
+
+  {{- if .Values.global.pulsar.namespace }}
+  pulsar.namespace: {{ .Values.global.pulsar.namespace | quote }}
+  {{- else }}
+  pulsar.namespace: {{ .Values.diadmin.config.pulsar.namespace | quote }}
+  {{- end }}
+
+  {{- if .Values.global.pulsar.webServicePort }}
+  pulsar.web.service.port: {{ .Values.global.pulsar.webServicePort | quote }}
+  {{- else }}
+  pulsar.web.service.port: {{ .Values.diadmin.config.pulsar.webServicePort | quote }}
+  {{- end }}
+
+  {{- if .Values.global.pulsar.webServicePortTls }}
+  pulsar.web.service.port.tls: {{ .Values.global.pulsar.webServicePortTls | quote }}
+  {{- else }}
+  pulsar.web.service.port.tls: {{ .Values.diadmin.config.pulsar.webServicePortTls | quote }}
+  {{- end }}
+
+  {{- if .Values.global.pulsar.brokerServicePort }}
+  pulsar.broker.service.port: {{ .Values.global.pulsar.brokerServicePort | quote }}
+  {{- else }}
+  pulsar.broker.service.port: {{ .Values.diadmin.config.pulsar.brokerServicePort | quote }}
+  {{- end }}
+
+  {{- if .Values.global.pulsar.brokerServicePortTls }}
+  pulsar.broker.service.port.tls: {{ .Values.global.pulsar.brokerServicePortTls | quote }}
+  {{- else }}
+  pulsar.broker.service.port.tls: {{ .Values.diadmin.config.pulsar.brokerServicePortTls | quote }}
+  {{- end }}
+
+
+
+  {{- if .Values.global.pulsar.authEnable }}
+  pulsar.auth.enable: {{ .Values.global.pulsar.authEnable | quote }}
+  {{- else }}
+  pulsar.auth.enable: {{ .Values.diadmin.config.pulsar.authEnable | quote }}
+  {{- end }}
+
+  {{- if .Values.global.pulsar.authClass }}
+  pulsar.auth.class: {{ .Values.global.pulsar.authClass | quote }}
+  {{- else }}
+  pulsar.auth.class: {{ .Values.diadmin.config.pulsar.authClass | quote }}
+  {{- end }}
+
+  {{- if .Values.global.pulsar.tlsHostnameVerification }}
+  pulsar.tls.hostname.verification: {{ .Values.global.pulsar.tlsHostnameVerification | quote }}
+  {{- else }}
+  pulsar.tls.hostname.verification: {{ .Values.diadmin.config.pulsar.tlsHostnameVerification | quote }}
+  {{- end }}
+
+  hikaricp.connection.timeout: {{ .Values.diadmin.config.hikaricp.connectionTimeout | quote }}
+  hikaricp.connection.maximum.lifetime: {{ .Values.diadmin.config.hikaricp.connectionMaximumLifetime | quote }}
+  hikaricp.minimum.idle.connections: {{ .Values.diadmin.config.hikaricp.minimumIdleConnections | quote }}
+  hikaricp.maximum.pool.size: {{ .Values.diadmin.config.hikaricp.maximumPoolSize | quote }}
+  hikaricp.connection.pool.name: {{ .Values.diadmin.config.hikaricp.connectionPoolName }}
+  dataset.status.polling.timeout.in.seconds: {{ .Values.diadmin.config.admin.datasetStatusPollingTimeoutInSeconds | quote }}
+  admin.express.load.enable: {{ .Values.diadmin.config.admin.expressLoadEnabled | quote }}
+  {{- if .Values.global.cluster.k8sProvider }}
+  {{- if and (eq (.Values.global.cluster.k8sProvider | toString) "aws") (eq (.Values.diadmin.config.admin.expressLoadEnabled | toString) "true") }}
+
+  {{- if .Values.diminio.clientAccessKey }}
+  admin.minio.clientAccessKey: {{ .Values.diminio.clientAccessKey | quote }}
+  {{- end }}
+  {{- if .Values.diminio.clientSecretKey }}
+  admin.minio.clientSecretKey: {{ .Values.diminio.clientSecretKey | quote }}
+  {{- end }}
+  {{- if .Values.diminio.adminAccessKey }}
+  admin.minio.adminAccessKey: {{ .Values.diminio.adminAccessKey | quote }}
+  {{- end }}
+  {{- if .Values.diminio.adminSecretKey }}
+  admin.minio.adminSecretKey: {{ .Values.diminio.adminSecretKey | quote }}
+  {{- end }}
+  admin.s3.region: {{ .Values.diadmin.config.s3.region | quote }}
+  {{- if .Values.diadmin.config.s3.bucketPrefix }}
+  {{ include "validateS3BucketPrefix" . | required "The Bucket Prefix must contain lowercase chars , digit or hyphen" }}
+  {{- end }}
+
+  {{- end }}
+  {{- end }}
+
+  {{- if (eq (.Values.diadmin.config.admin.expressLoadEnabled | toString) "true") }}
+  admin.minio.host: {{ template "minio.host" .}}
+  admin.minio.port: {{ template "minio.port" .}}
+  admin.minio.nodePort: {{ template "minio.nodePort" .}}
+  admin.minio.ssl.enable: {{ template "minio.ssl" .}}
+  admin.minio.externalAccessHost: {{ template "minio.externalAccessHost" .}}
+
+  #{{- if .Values.diadmin.config.minio.accessKey }}
+  #admin.minio.accessKey: {{ .Values.diadmin.config.minio.accessKey | quote }}
+  #{{- else }}
+  #admin.minio.accessKey: accessKey
+  #{{- end }}
+
+  #{{- if .Values.diadmin.config.minio.secretKey }}
+  #admin.minio.secretKey: {{ .Values.diadmin.config.minio.secretKey | quote }}
+  #{{- else }}
+  #admin.minio.secretKey: secretKey
+  #{{- end }}
+
+
+  admin.expressLoad.workerCount: {{ .Values.diadmin.config.expressLoad.workerCount | quote }}
+  admin.expressLoad.pollingIntervalInSec: {{ .Values.diadmin.config.expressLoad.pollingIntervalInSec | quote }}
+  admin.expressLoad.csvObjectLimitForDirectInMB: {{ .Values.diadmin.config.expressLoad.csvObjectLimitForDirectInMB | quote }}
+  admin.expressLoad.gzipObjectLimitForDirectInMB: {{ .Values.diadmin.config.expressLoad.gzipObjectLimitForDirectInMB | quote }}
+  admin.expressLoad.vertica.connectionPoolSize: {{ .Values.diadmin.config.expressLoad.verticaConnectionPoolSize | quote }}
+  admin.expressLoad.vertica.connectionLoadbalancing: {{ .Values.diadmin.config.expressLoad.verticaConnectionLoadbalancing | quote }}
+  admin.expressLoad.objectSizeLimitInMB: {{ .Values.diadmin.config.expressLoad.objectSizeLimitInMB | quote }}
+  admin.expressLoad.parameters.enforceLength: {{ .Values.diadmin.config.expressLoad.parameters.enforceLength | quote }}
+  admin.expressLoad.parameters.abortOnError: {{ .Values.diadmin.config.expressLoad.parameters.abortOnError | quote }}
+  admin.expressLoad.parameters.rejectOnEmptyKey: {{ .Values.diadmin.config.expressLoad.parameters.rejectOnEmptyKey | quote }}
+  admin.expressLoad.parameters.rejectOnDataMismatch: {{ .Values.diadmin.config.expressLoad.parameters.rejectOnDataMismatch | quote }}
+  admin.expressLoad.parameters.maxRejections: {{ .Values.diadmin.config.expressLoad.parameters.maxRejections | quote }}
+  admin.expressLoad.parameters.header: {{ .Values.diadmin.config.expressLoad.parameters.header | quote }}
+  {{- if .Values.diadmin.config.expressLoad.verticaResourcePool }}
+  admin.expressLoad.verticaResourcePool: {{ .Values.diadmin.config.expressLoad.verticaResourcePool }}
+  {{- else }}
+  {{- if (eq (.Values.global.vertica.embedded | toString) "true") }}
+  admin.expressLoad.verticaResourcePool: ""
+  {{- else }}
+  admin.expressLoad.verticaResourcePool: itom_di_express_load_respool_{{ .Values.global.di.tenant }}_{{ .Values.global.di.deployment }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- if .Values.diadmin.config.admin.enableSecurityAudit }}
+  admin.auditLogs.enabled: {{ .Values.diadmin.config.admin.enableSecurityAudit | quote }}
+  {{- end}}

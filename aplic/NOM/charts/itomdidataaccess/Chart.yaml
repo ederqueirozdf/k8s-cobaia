@@ -1,0 +1,11 @@
+apiVersion: v2
+appVersion: 2.5.0-34
+dependencies:
+- name: helm-lib
+  version: 1.4.10
+description: A Helm chart for ITOM DI Data Access
+maintainers:
+- email: swpdl.askstoreonce@microfocus.com
+  name: ITOM-DI
+name: itomdidataaccess
+version: 2.5.0-34

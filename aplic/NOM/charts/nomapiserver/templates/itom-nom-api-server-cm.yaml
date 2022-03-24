@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: itom-nom-api-server-config
+  labels:
+    name: itom-nom-api-server
+data:
+  {{- if .Values.global.opsbridgeIntegration.isSelected }}
+  ZK_HOSTNAME: "itomdipulsar-zookeeper"
+  {{- else }}
+  ZK_HOSTNAME: {{ .Values.deployment.zookeeper.name | quote }}
+  {{- end }}
+  ZK_DEFAULT_PORT: {{ .Values.deployment.zookeeper.port | quote }}
+  ZK_DEFAULT_ZOOKEEPER_USERNAME: {{ .Values.deployment.zookeeper.user | quote }}
+  ZK_DEFAULT_ADMIN_PASSWORD_KEY: {{ .Values.deployment.zookeeper.passwordKey | quote }}
+  ZK_DEFAULT_NAMESPACE: "nom"
+  ZK_DEFAULT_SESSION_TIMEOUT: "3000"
+  ZK_DEFAULT_CONNECTION_TIMEOUT: "3000"
+  EXTERNAL_ACCESS_HOST: {{ .Values.global.externalAccessHost | quote }}
+  EXTERNAL_ACCESS_PORT: {{ .Values.global.externalAccessPort | quote }}
+  NOM_IDM_ADMIN_USER: {{ .Values.deployment.idm.user | quote }}
+  IDM_ADMIN_KEY: {{ .Values.deployment.idm.passwordKey | quote }}
+  SUITE_INSTALLER_PORT: "5443"

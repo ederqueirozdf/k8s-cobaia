@@ -1,0 +1,140 @@
+global:
+
+  nom:
+    edition: ""
+    nomProductId: "50039_2.0_NOM_2020.11"
+
+  docker:
+    # set the global.docker.registry and orgName to your internal Docker registry/org
+    registry: localhost:5000
+    orgName: hpeswitom
+    imagePullSecret: ""
+    imagePullPolicy: IfNotPresent
+
+  # User ID and group ID to run as
+  securityContext:
+    user: "1999"
+    fsGroup: "1999"
+
+  rbac:
+    # Specifies whether a ServiceAccount should be created
+    serviceAccountCreate: true
+
+  # persistence.enabled=true means that the PVCs are expected to be dynamically created by the composition chart.
+  # Otherwise, persistence.dataVolumeClaim is a persistent volume claim for storing data files.
+  # persistence.logVolumeClaim is a persistent volume claim for storing log files.
+  # If all of the above are undefined, then temporary ephemeral storage will be created (only if isDemo=true)
+  persistence:
+    enabled: false
+    dataVolumeClaim:
+    configVolumeClaim:
+
+  # REQUIRED: The externalAccessHost is the end-point for the service
+  externalAccessHost:
+  # The externalAccessPort defaults to 443
+  externalAccessPort: 443
+
+  vaultRenew:
+    image: kubernetes-vault-renew
+    imageTag: 0.12.0-003
+  vaultInit:
+    image: kubernetes-vault-init
+    imageTag: 0.12.0-003
+
+  busybox:
+    image: itom-busybox
+    imageTag: 1.34.0-004
+
+  opensuse:
+    image: opensuse-base
+    imageTag: 15.3-0028
+
+  opsbridgeIntegration:
+    isSelected: false
+  # DataSource defaults to NPS if selected
+  perfTroubleshooting:
+    isSelected: false
+  # feature enablement for COSO and BVD
+  coso:
+    isSelected: true
+
+  vertica:
+    embedded: true
+    host:
+    port:
+    db:
+    useSsl:
+    username:
+    passwordKey:
+    schema:
+    entitySchema: nom
+
+  database:
+    tlsTruststore:
+  di:
+    tenant: provider
+    deployment: default
+
+  minio:
+    isSelected:
+
+  cluster:
+    k8sProvider: cdf
+
+  #Properties for Shared Optic Reporting
+  services:
+    sharedOpticReporting: false
+    namespace:
+    external:
+      host:
+      port:
+    internal:
+      host:
+      port:
+
+
+sybase:
+  host:
+  port: "9303"
+  db: "perfspi"
+  user: "DBA"
+  passwordKey: "SYBASE_DB_PASSWORD_KEY" #This should not be changed.
+
+minio:
+  host:
+  port:
+    default: "30006"
+    azure: "9000"
+    s3: "443"
+  accessKey: "ITOMDI_MINIO_ADMIN_ACCESS_KEY"
+  secretKey: "ITOMDI_MINIO_ADMIN_SECRET_KEY"
+
+deployment:
+
+  idm:
+    # IDM now has a name prefix, which can be changed by composition chart.
+    namePrefix: "itom-"
+    service: idm-svc
+    port: 18443
+    user: nomadmin
+    passwordKey: idm_nom_admin_password
+    transportUser: transport_admin
+
+resources:
+
+# Assigning pods to cluster nodes
+nodeSelector:
+  Worker: label
+
+tolerations: []
+
+affinity: {}
+
+
+
+#####################
+# Image definitions
+#####################
+dataAccess:
+  image: itom-nom-coso-data-access
+  imageTag: 1.4.46

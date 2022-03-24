@@ -1,0 +1,21 @@
+# Default values for vault-client
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Consuming charts can declare a namePrefix which will cause all names (service names, deployment names, etc.)
+# to be prefixed with the specified value, instead of default "itom" prefix.  This enables multiple
+# instances of the chart in a single namespace.
+# default value is itom
+namePrefix: itom
+
+# Consuming charts can declare they want backwards-compatible service name, i.e. prefixed with
+# Helm "Release.Name".
+#
+backwardsCompatServiceName: false
+
+global:
+  rbac:
+    roleCreate: true
+
+nameOverride: ""
+fullnameOverride: ""

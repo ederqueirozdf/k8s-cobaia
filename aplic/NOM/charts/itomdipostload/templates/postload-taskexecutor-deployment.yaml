@@ -1,0 +1,468 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: itom-di-postload-taskexecutor
+  labels:
+    app.kubernetes.io/name: itom-di-postload-taskexecutor
+    app.kubernetes.io/managed-by: {{.Release.Name}}
+    app.kubernetes.io/version: {{.Values.postload.taskExecutor.imageTag}}
+    itom.microfocus.com/capability: itom-data-ingestion
+    tier.itom.microfocus.com/backend: backend
+    app: itom-di-postload-taskexecutor
+  annotations:
+    deployment.microfocus.com/default-replica-count: "1"
+    deployment.microfocus.com/runlevel: UP
+    {{- if .Values.global.tlsTruststore }}
+    configmap.reloader.stakater.com/reload: "{{ .Values.global.tlsTruststore }}"
+    {{- end }}
+spec:
+  replicas: {{ .Values.dipostload.config.taskExecutor.replicaCount }}
+  selector:
+    matchLabels:
+      app: itom-di-postload-taskexecutor
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: itom-di-postload-taskexecutor
+        app.kubernetes.io/managed-by: {{.Release.Name}}
+        app.kubernetes.io/version: {{.Values.postload.taskExecutor.imageTag}}
+        itom.microfocus.com/capability: itom-data-ingestion
+        tier.itom.microfocus.com/backend: backend
+        app: itom-di-postload-taskexecutor
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/postload-configmap.yaml") . | sha256sum }}
+        prometheus.io/port: "8443"
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        pod.boostport.com/vault-init-container: install
+    spec:
+      securityContext:
+        runAsUser: {{ .Values.global.securityContext.user }}
+        runAsGroup: {{ .Values.global.securityContext.group }}
+        fsGroup: {{ .Values.global.securityContext.fsGroup }}
+      {{ if eq (include  "postload.is_cloud_deployment" . ) "true" -}}
+      {{ if .Values.dipostload.topologySpreadConstraints.taskExecutor.enabled -}}
+      topologySpreadConstraints:
+      - maxSkew: {{ .Values.dipostload.topologySpreadConstraints.taskExecutor.maxSkew | default 1 }}
+        topologyKey: {{ .Values.dipostload.topologySpreadConstraints.taskExecutor.topologyKey | default "topology.kubernetes.io/zone" }}
+        whenUnsatisfiable: {{ .Values.dipostload.topologySpreadConstraints.taskExecutor.whenUnsatisfiable | default "ScheduleAnyway" }}
+        labelSelector:
+          matchLabels:
+            app: itom-di-postload-taskexecutor
+      {{- end }}
+      {{- end }}
+
+      {{- with .Values.affinity.taskExecutor }}
+      affinity:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      
+      serviceAccount: {{ .Values.deployment.rbac.serviceAccount | default "itom-di-postload-sa" }}
+      serviceAccountName: {{ .Values.deployment.rbac.serviceAccount | default "itom-di-postload-sa" }}
+      
+      terminationGracePeriodSeconds: {{ .Values.dipostload.config.terminationGracePeriodSeconds }}
+      containers:
+        - name: itom-di-postload-taskexecutor-cnt
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.postload.taskExecutor.image }}:{{ .Values.postload.taskExecutor.imageTag }}
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          {{- if .Values.dipostload.probe.taskExecutor.liveness.enabled }}
+          livenessProbe:
+            exec:
+              command:
+              - sh
+              - /taskexecutor/bin/liveness.sh
+            initialDelaySeconds: {{ .Values.dipostload.probe.taskExecutor.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.dipostload.probe.taskExecutor.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.dipostload.probe.taskExecutor.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.dipostload.probe.taskExecutor.liveness.failureThreshold }}
+            successThreshold: {{ .Values.dipostload.probe.taskExecutor.liveness.successThreshold }}
+          {{- end }}
+          {{- if .Values.dipostload.probe.taskExecutor.readiness.enabled }}
+          readinessProbe:
+            exec:
+              command:
+              - sh
+              - /taskexecutor/bin/readiness.sh
+            initialDelaySeconds: {{ .Values.dipostload.probe.taskExecutor.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.dipostload.probe.taskExecutor.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.dipostload.probe.taskExecutor.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.dipostload.probe.taskExecutor.readiness.failureThreshold }}
+            successThreshold: {{ .Values.dipostload.probe.taskExecutor.readiness.successThreshold }}
+          {{- end }}
+          env:
+          {{- if .Values.dipostload.config.postload.pulsarNamespace }}
+          - name: POSTLOAD_PULSAR_NAMESPACE
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.pulsar.namespace
+          {{- end }}
+          - name: POSTLOAD_TASK_TOPIC
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.task.topic
+          - name: POSTLOAD_STATUS_TOPIC
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.status.topic
+          - name: TIMEZONE
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.timezone
+          - name: BATCH_SIZE
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.enrichmentbatchsize
+          - name: RESOURCE_POOL
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.postresourcepool
+          - name: CONSUMERS_PER_TE
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.consumers.per.task.executor
+          - name: POSTLOAD_USE_RECEIVE_TO_CONSUME
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.use.receive.to.consume
+          - name: POSTLOAD_ENABLE_TE_PROCESS_MONITORING
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.enable.te.process.monitoring
+          - name: POSTLOAD_CONFIG_STORE_DB_ENABLE
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: config.store.db.enable
+          - name: CSV_DIRECT_LOAD_COMPRESS_ARCHIVE
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: csvdirectload.compress.archive.files
+          - name: CSV_DIRECT_LOAD_COMPRESS_FAILED
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: csvdirectload.compress.failed.files
+          - name: CSV_DIRECT_LOAD_COMPRESS_EACH
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: csvdirectload.compress.each.file
+          - name: CSV_DIRECT_LOAD_CLEANUP_RETENTION_PERIOD_DAYS
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: csvdirectload.cleanup.retention.period.days
+          - name: CSV_DIRECT_LOAD_CLEANUP_RETENTION_SIZE_MB
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: csvdirectload.cleanup.retention.size.mb
+          - name: CSV_DIRECT_LOAD_CLEANUP_PURGE_CONTROLTABLE_AFTER_DELETE
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: csvdirectload.cleanup.purge.controltable.after.delete
+          - name: POSTLOAD_PULSAR_SERVICE_NAME
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.pulsar.service.name
+          - name: POSTLOAD_PULSAR_BROKER_SERVICE_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.pulsar.broker.service.port
+          - name: POSTLOAD_PULSAR_BROKER_SERVICE_PORT_TLS
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.pulsar.broker.service.port.tls
+          - name: POSTLOAD_PULSAR_WEB_SERVICE_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.pulsar.web.service.port
+          - name: POSTLOAD_PULSAR_WEB_SERVICE_PORT_TLS
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.pulsar.web.service.port.tls
+          - name: POSTLOAD_PULSAR_TLS_ENABLE
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.pulsar.tls.enable
+          - name: POSTLOAD_PULSAR_AUTH_ENABLE
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.pulsar.auth.enable
+          - name: POSTLOAD_PULSAR_AUTH_CLASS
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.pulsar.auth.class
+          - name: POSTLOAD_PULSAR_TLS_HOSTNAME_VERIFICATION
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.pulsar.tls.hostname.verification
+          - name: POSTLOAD_PULSAR_CONNECTION_RETRY_INTERVAL_SECONDS
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.pulsar.connection.retry.interval.seconds
+          - name: VERTICA_HOSTNAMES
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: vertica.hostname
+          - name: VERTICA_USERNAME
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: vertica.username
+          - name: VERTICA_PASS_KEY
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: vertica.password.key
+          - name: VERTICA_DB
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: vertica.db
+          - name: VERTICA_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: vertica.port
+          - name: VERTICA_TLS_ENABLED
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: vertica.tlsEnabled
+          - name: VERTICA_TLS_MODE
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: vertica.tlsMode
+          - name: VERTICA_CONNECTION_RETRY_INTERVAL_SECONDS
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: vertica.connection.retry.interval.seconds
+          - name: DI_TENANT
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: di.tenant
+          - name: DI_DEPLOYMENT
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: di.deployment
+          - name: JAVA_OPTS
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: postload.task.executor.jvm.args
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: CONTAINER_NAME
+            value: postload-taskexecutor
+          - name: LOGGING_FROM_CONFIGMAP
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: taskExecutor.logconfig.from.configmap
+         {{- if .Values.dipostload.config.taskExecutor.logConfigFromConfigmap }}
+          - name: LOG_TO_FILE
+            valueFrom:
+              configMapKeyRef:
+                name: itom-di-postload-cm
+                key: taskExecutor.logconfig.log.to.file
+              {{- end }}
+          ports:
+            - containerPort: 8443
+          resources:
+                {{- toYaml .Values.resources.taskExecutor | nindent 12 }}
+          volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/boostport.com
+          - name: di-taskexecutor-conf-vol
+            mountPath: /mnt/itom/postload/conf
+            subPath: di/postload/conf
+          - name: di-taskexecutor-conf-vol
+            mountPath: /mnt/itom/postload/bin/task-artifacts
+            subPath: di/postload/bin/task-artifacts
+          - name: di-taskexecutor-conf-vol
+            mountPath: /mnt/itom/postload/ext
+            subPath: di/postload/ext
+          - name: di-taskexecutor-conf-vol
+            mountPath: /mnt/itom/postload/samples
+            subPath: di/postload/samples
+          - name: di-taskexecutor-data-vol
+            mountPath: /mnt/itom/postload/data
+            subPath: di/data-processor/data
+          - name: di-taskexecutor-log-vol
+            mountPath: /mnt/itom/postload/log
+          - name: itom-de
+            mountPath: /taskexecutor/tasktype-ext
+          - name: custom-server-ca-volume
+            mountPath: /taskexecutor/ssl/ca
+          - name: cm-logback
+            mountPath: /taskexecutor/conf-local/logback
+        - name: kubernetes-vault-renew
+          {{- if and .Values.global.vaultRenew.registry .Values.global.vaultRenew.orgName }}
+          image: {{ .Values.global.vaultRenew.registry }}/{{ .Values.global.vaultRenew.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+          {{- else }}
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+          {{- end }}
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/boostport.com
+      initContainers:
+        {{- include "helm-lib.waitForVault" . | nindent 6 }}
+      - name: waitfor-vertica-service
+        {{- if (eq (.Values.global.vertica.embedded | toString) "true") }}
+        {{- $vh := "itom-di-vertica-svc" }}
+        {{- $vp := "5444" -}}
+        {{- $fvnode := "itom-di-vertica-svc" }}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.busybox.image }}:{{ .Values.global.busybox.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        command: [ "sh", "-c", "until nc -z {{$fvnode}} {{$vp}} -w 5 ; do echo waiting for {{$fvnode}}:{{$vp}}...; sleep 5; done; exit 0"]
+        resources: {}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.securityContext.user }}
+          runAsGroup: {{ .Values.global.securityContext.fsGroup }}
+        {{- else -}}
+        {{- $vh := .Values.global.vertica.host }}
+        {{- $vp := .Values.global.vertica.port }}
+        {{- $fvnode := $vh }}
+        {{- $firstvertnode := split "," $vh }}
+        {{- $fvnode := $firstvertnode._0 }}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.busybox.image }}:{{ .Values.global.busybox.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        command: [ "sh", "-c", "cmd=''; vh_local={{$vh}}; vp_local={{$vp}}; for i in $(echo $vh_local | sed 's/,/ /g' | awk '{$1=$1};1'); do cmd=$(echo $cmd '|| nc -z '$i' '$vp_local' -w 5 '); done; cmd=${cmd:3}; echo 'command is : '$cmd''; until eval $(echo $cmd); do echo 'waiting for '$vh_local' with port '$vp_local' ... '; sleep 5; done; exit 0;"]
+        resources: {}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.securityContext.user }}
+          runAsGroup: {{ .Values.global.securityContext.fsGroup }}
+        {{- end }}
+             
+      - env:
+          {{- if .Values.global.vaultAppRole }}
+        - name: VAULT_ROLE_ID
+          value: {{ required "Required value is not defined: vaultRoleId" .Values.global.vaultRoleId | quote }}
+        {{- end }}
+        - name: CERT_COMMON_NAME
+          value: "Common_Name:itom-di-message-bus-svc,File_Name:server"
+        {{- if and .Values.global.vaultInit.registry .Values.global.vaultInit.orgName }}
+        image: {{ .Values.global.vaultInit.registry }}/{{ .Values.global.vaultInit.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+        {{- else}}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+        {{- end}}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        name: install
+        resources: {}
+        securityContext:
+          runAsUser: {{ .Values.global.securityContext.user }}
+          runAsGroup: {{ .Values.global.securityContext.groupVault }}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+          - mountPath: /var/run/secrets/boostport.com
+            name: vault-token
+      - name: itom-di-init-enrichment-cnt
+        {{- if  .Values.enrichment.orgName  }}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.enrichment.orgName }}/{{ .Values.enrichment.image }}:{{ .Values.enrichment.imageTag }}
+        {{- else}}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.enrichment.image }}:{{ .Values.enrichment.imageTag }}
+        {{- end}}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        command: ["/bin/sh", "-c"]
+        args:
+          - echo copying task type files to shared volume;
+            cp /itomde/data-enrich/* /taskexecutor/tasktype-ext;
+            echo done;
+        volumeMounts:
+          - mountPath: /taskexecutor/tasktype-ext
+            name: itom-de
+        {{- if .Values.customTaskType.enabled }}
+      - name: itom-di-init-custom-tasktype-cnt
+        {{- if and .Values.customTaskType.registry .Values.customTaskType.orgName }}
+        image: {{ .Values.customTaskType.registry }}/{{ .Values.customTaskType.orgName }}/{{ .Values.customTaskType.image }}:{{ .Values.customTaskType.imageTag }}
+        {{- else}}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.customTaskType.image }}:{{ .Values.customTaskType.imageTag }}
+        {{- end}}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        command: ["/bin/sh", "-c"]
+        args:
+          - echo copying task type files to shared volume;
+            cp /itomde/data-enrich/* /taskexecutor/tasktype-ext;
+            echo done;
+        volumeMounts:
+          - mountPath: /taskexecutor/tasktype-ext
+            name: itom-de
+        {{- end}}
+      {{- with ( coalesce .Values.nodeSelector .Values.global.nodeSelector ) }}
+      nodeSelector:
+        {{ toYaml . }}
+      {{- end }}
+      volumes:
+      - name: cm-logback
+        configMap:
+          name: taskexecutor-logback-cm
+      - name: di-taskexecutor-conf-vol
+        {{- include "helm-lib.pvcStorage" (dict "claim" "configVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      - name: di-taskexecutor-data-vol
+        {{- include "helm-lib.pvcStorage" (dict "claim" "dataVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      - name: di-taskexecutor-log-vol
+        {{- include "helm-lib.pvcStorage" (dict "claim" "logVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      - name: vault-token
+        emptyDir: {}
+      - name: itom-de
+        emptyDir: {}
+      - name: custom-server-ca-volume
+        projected:
+          sources:
+          - secret:
+              name: itom-di-postload-secret
+        {{- if .Values.global.tlsTruststore }}
+          - configMap:
+              name: {{ .Values.global.tlsTruststore }}
+        {{- end }}

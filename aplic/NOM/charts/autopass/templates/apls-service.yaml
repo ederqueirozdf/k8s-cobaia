@@ -1,0 +1,14 @@
+{{ $namePrefix := include "namePrefix" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $namePrefix }}-autopass-lms
+spec:
+  sessionAffinity: ClientIP
+  ports:
+  - port: 5814
+    protocol: TCP
+    name: apls-port
+#label keys and values that must match in order to receive traffic for this service
+  selector:
+    name: {{ $namePrefix }}-autopass-lms

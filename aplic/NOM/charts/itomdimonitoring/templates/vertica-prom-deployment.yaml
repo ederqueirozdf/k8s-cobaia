@@ -1,0 +1,176 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ template "monitoring.fullname" . }}-{{ .Values.monitoring.verticapromexporter.component }}"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monitoring.vpename" . | nindent 4 }}
+    {{- include "monitoring.standardLabels" . | nindent 4 }}
+    chart: {{ template "monitoring.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: {{ .Values.monitoring.verticapromexporter.component }}
+    cluster: {{ template "monitoring.fullname" . }}
+  annotations:    
+    deployment.microfocus.com/default-replica-count: "1"
+    deployment.microfocus.com/runlevel: UP    
+    {{- if .Values.global.tlsTruststore }}
+    configmap.reloader.stakater.com/reload: "{{ .Values.global.tlsTruststore }}"
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "monitoring.name" . }}
+      release: {{ .Release.Name }}
+      component: {{ .Values.monitoring.verticapromexporter.component }}
+  template:
+    metadata:
+      labels:
+        {{- include "monitoring.vpename" . | nindent 8 }}
+        {{- include "monitoring.standardLabels" . | nindent 8 }}
+        release: {{ .Release.Name }}
+        component: {{ .Values.monitoring.verticapromexporter.component }}
+        cluster: {{ template "monitoring.fullname" . }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/vertica-prom-configmap.yaml") . | sha256sum }}
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        pod.boostport.com/vault-init-container: generate-certificates
+    spec:
+    {{- with ( coalesce .Values.nodeSelector .Values.global.nodeSelector ) }}
+      nodeSelector:
+        {{ toYaml . }}
+    {{- end }} 
+    {{- if .Values.monitoring.verticapromexporter.tolerations }}
+      tolerations:
+{{ toYaml .Values.monitoring.verticapromexporter.tolerations | indent 8 }}
+    {{- end }}    
+      serviceAccount: {{ .Values.deployment.rbac.serviceAccount | default "itom-di-monitoring-sa" }}
+      serviceAccountName: {{ .Values.deployment.rbac.serviceAccount | default "itom-di-monitoring-sa" }}    
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.global.securityContext.user }}
+        runAsGroup: {{ .Values.global.securityContext.fsGroup }}
+      initContainers:
+      {{- include "helm-lib.waitForVault" . | nindent 6 }}
+      - name: waitfor-vertica-service
+      {{- if (eq (.Values.global.vertica.embedded | toString) "true") }}
+      {{- $vh := "itom-di-vertica-svc"}}
+      {{- $vp := "5444" -}}
+      {{- $fvnode := "itom-di-vertica-svc" }}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.busybox.image }}:{{ .Values.global.busybox.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        command: [ "sh", "-c", "until nc -z {{$fvnode}} {{$vp}} -w 5 ; do echo waiting for {{$fvnode}}:{{$vp}}...; sleep 5; done; exit 0"]
+        resources: {}
+      {{- else -}}
+      {{- $vh := .Values.global.vertica.host }}
+      {{- $vp := .Values.global.vertica.port }}
+      {{- $fvnode := $vh }}
+      {{- $firstvertnode := split "," $vh }}
+      {{- $fvnode := $firstvertnode._0 }}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.busybox.image }}:{{ .Values.global.busybox.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        command: [ "sh", "-c", "cmd=''; vh_local={{$vh}}; vp_local={{$vp}}; for i in $(echo $vh_local | sed 's/,/ /g' | awk '{$1=$1};1'); do cmd=$(echo $cmd '|| nc -z '$i' '$vp_local' -w 5 '); done; cmd=${cmd:3}; echo 'Command is : '$cmd''; until eval $(echo $cmd); do echo 'waiting for '$vh_local' with port '$vp_local' ... '; sleep 5; done; exit 0;"]
+        resources: {}
+      {{- end }}
+      # This init container will generate certificates. 
+      - name: generate-certificates
+      {{- if and .Values.global.vaultInit.registry .Values.global.vaultInit.orgName }}
+        image: {{ .Values.global.vaultInit.registry }}/{{ .Values.global.vaultInit.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+      {{- else}}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+      {{- end}}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        env:
+          - name: CERT_COMMON_NAME
+            value: "{{ template "monitoring.fullname" . }}-{{ .Values.monitoring.verticapromexporter.component }}"
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+      containers:
+      - name: certificate-renew
+        {{- if and .Values.global.vaultRenew.registry .Values.global.vaultRenew.orgName }}
+        image: {{ .Values.global.vaultRenew.registry }}/{{ .Values.global.vaultRenew.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+        {{- else }}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+        {{- end }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+      - name: "{{ template "monitoring.fullname" . }}-{{ .Values.monitoring.verticapromexporter.component }}"
+        {{- if and .Values.monitoring.verticapromexporter.registry .Values.monitoring.verticapromexporter.orgName }}
+        image: {{ .Values.monitoring.verticapromexporter.registry }}/{{ .Values.monitoring.verticapromexporter.orgName }}/{{ .Values.monitoring.verticapromexporter.image }}:{{ .Values.monitoring.verticapromexporter.imageTag }}
+        {{- else }}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.monitoring.verticapromexporter.image }}:{{ .Values.monitoring.verticapromexporter.imageTag }}
+        {{- end }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        {{- if .Values.monitoring.verticapromexporter.probe.readiness.enabled }}
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: health-port
+          initialDelaySeconds: {{ .Values.monitoring.verticapromexporter.probe.readiness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.monitoring.verticapromexporter.probe.readiness.periodSeconds }}
+          timeoutSeconds: {{ .Values.monitoring.verticapromexporter.probe.readiness.timeoutSeconds }}
+          failureThreshold: {{ .Values.monitoring.verticapromexporter.probe.readiness.failureThreshold }}
+          successThreshold: {{ .Values.monitoring.verticapromexporter.probe.readiness.successThreshold }}
+        {{- end }}
+      {{- if .Values.monitoring.verticapromexporter.resources }}
+        resources:
+{{ toYaml .Values.monitoring.verticapromexporter.resources | indent 10 }}
+      {{- end }}
+        ports:
+        - name: metrics-port
+          containerPort: 8443
+        - name: health-port
+          containerPort: 8080
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+        - name: custom-server-cert-volume
+          mountPath: /mnt/itom/exporter/certs
+        envFrom:
+        - configMapRef:
+            name: "{{ template "monitoring.fullname" . }}-{{ .Values.monitoring.verticapromexporter.component }}"
+        env:
+        - name: TLS_CERT_FILE_PATH
+          value: "/var/run/secrets/boostport.com/server.crt"
+        - name: TLS_KEY_FILE_PATH
+          value: "/var/run/secrets/boostport.com/server.key"
+        - name: GODEBUG
+          value: "x509ignoreCN=0"
+      volumes:
+        - name: custom-server-cert-volume
+          projected:
+            sources:
+            - secret:
+                name: vert-prom-secret
+          {{- if .Values.global.tlsTruststore }}
+            - configMap:
+                name: {{ .Values.global.tlsTruststore }}
+          {{- end }}
+        - name: vault-token
+          emptyDir: {}

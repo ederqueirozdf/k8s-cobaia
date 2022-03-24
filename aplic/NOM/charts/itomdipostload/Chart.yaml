@@ -1,0 +1,11 @@
+apiVersion: v2
+appVersion: 2.5.0-50
+dependencies:
+- name: helm-lib
+  version: 1.4.10
+description: Micro Focus ITOM DI Postload Processor
+maintainers:
+- email: swpdl.askstoreonce@microfocus.com
+  name: ITOM-DI
+name: itomdipostload
+version: 2.5.0-50

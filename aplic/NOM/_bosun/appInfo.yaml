@@ -1,0 +1,28 @@
+displayName: Network Operations Management (NOM)
+releaseDate: 2021-11-22T08:03:12.027Z
+
+displayEdition: Ultimate Edition
+
+shortDescription: nom.ultimate.appinfo.shortDescription
+description: nom.ultimate.appinfo.description
+
+whatsNew: nom.appinfo.whatsNew
+
+requirements: nom.appinfo.requirements
+
+documentationUrl: "https://docs.microfocus.com/itom/Network_Operations_Management:2021.11/Home"
+entitlementsUrl: "https://softwaresupport.softwaregrp.com/group/softwaresupport/settings"
+productBriefUrl: "https://docs.microfocus.com/itom/ITOM:Network_Operations_Management/Home"
+supportUrl: "https://softwaresupport.softwaregrp.com/"
+communityUrl: "https://community.microfocus.com/t5/Network-Operations-Management/ct-p/NOM"
+
+# this might be different, per chart ... for now all 6 charts will use same screenshot
+screenshotImage: images/nom-screenshot.png
+productIcon: images/nom-screenshot.png
+
+# These "family" items are required to be "I" and "IT Operations Management"
+familyIconText: I
+familyName: IT Operations Management
+
+# not used
+allowCustomSelection: true

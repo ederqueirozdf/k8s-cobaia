@@ -1,0 +1,111 @@
+{{- if .Capabilities.APIVersions.Has "networking.k8s.io/v1/Ingress" }}
+apiVersion: networking.k8s.io/v1
+{{ else if .Capabilities.APIVersions.Has "networking.k8s.io/v1beta1/Ingress" }}
+apiVersion: networking.k8s.io/v1beta1
+{{ else }}
+apiVersion: extensions/v1beta1
+{{ end -}}
+kind: Ingress
+metadata:
+  name: nom-ingress-api-server
+  annotations:
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/backend-protocol: HTTPS
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/force-ssl-redirect: "true"
+    {{ default "ingress.kubernetes.io" .Values.global.nginx.annotationPrefix }}/secure-backends: "true"
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  rules:
+    - host: {{ .Values.global.externalAccessHost }}
+      http:
+        paths:
+          - path: /nom/api
+            {{- if .Capabilities.APIVersions.Has "networking.k8s.io/v1/Ingress" }}
+            pathType: Prefix
+            backend:
+              service:
+                name: itom-nom-api-server
+                port: 
+                  number: 8443
+            {{- else }} 
+            backend:
+              serviceName: itom-nom-api-server
+              servicePort: 8443
+            {{- end }}
+          - path: /apiserver
+            {{- if .Capabilities.APIVersions.Has "networking.k8s.io/v1/Ingress" }}
+            pathType: Prefix
+            backend:
+              service:
+                name: itom-nom-api-server
+                port: 
+                  number: 8443
+            {{- else }} 
+            backend:
+              serviceName: itom-nom-api-server
+              servicePort: 8443
+            {{- end }}
+          - path: /urest
+            {{- if .Capabilities.APIVersions.Has "networking.k8s.io/v1/Ingress" }}
+            pathType: Prefix
+            backend:
+              service:
+                name: itom-nom-api-server
+                port: 
+                  number: 8443
+            {{- else }}
+            backend:
+              serviceName: itom-nom-api-server
+              servicePort: 8443
+            {{- end }}  
+          - path: /nom/ui/crosslaunch
+            {{- if .Capabilities.APIVersions.Has "networking.k8s.io/v1/Ingress" }}
+            pathType: Prefix
+            backend:
+              service:
+                name: itom-nom-api-server
+                port: 
+                  number: 8443
+            {{- else }}
+            backend:
+              serviceName: itom-nom-api-server
+              servicePort: 8443
+            {{- end }}  
+          - path: /idp/oauth2/token
+            {{- if .Capabilities.APIVersions.Has "networking.k8s.io/v1/Ingress" }}
+            pathType: Prefix
+            backend:
+              service:
+                name: itom-nom-api-server
+                port: 
+                  number: 8443
+            {{- else }}
+            backend:
+              serviceName: itom-nom-api-server
+              servicePort: 8443
+            {{- end }}  
+          - path: /itom/nom/api
+            {{- if .Capabilities.APIVersions.Has "networking.k8s.io/v1/Ingress" }}
+            pathType: Prefix
+            backend:
+              service:
+                name: itom-nom-api-server
+                port: 
+                  number: 8443
+            {{- else }}
+            backend:
+              serviceName: itom-nom-api-server
+              servicePort: 8443
+            {{- end }}  
+          - path: /itom/dl/data/access
+            {{- if .Capabilities.APIVersions.Has "networking.k8s.io/v1/Ingress" }}
+            pathType: Prefix
+            backend:
+              service:
+                name: itom-nom-api-server
+                port: 
+                  number: 8443
+            {{- else }}
+            backend:
+              serviceName: itom-nom-api-server
+              servicePort: 8443
+            {{- end }}  

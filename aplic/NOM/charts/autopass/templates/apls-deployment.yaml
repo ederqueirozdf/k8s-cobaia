@@ -1,0 +1,254 @@
+{{ $namePrefix := include "namePrefix" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $namePrefix }}-autopass-lms
+  labels:
+    name: {{ $namePrefix }}-autopass-lms
+  annotations:
+    deployment.microfocus.com/default-replica-count: "1"
+    deployment.microfocus.com/runlevel: UP
+    {{- if .Values.global.tlsTruststore }}
+    configmap.reloader.stakater.com/reload: "{{ .Values.global.tlsTruststore }}"
+    {{- end }}
+spec:
+  replicas: {{ include "apls.replicas" . }}
+  selector:
+    matchLabels:
+      name: {{ $namePrefix }}-autopass-lms
+  template:
+    metadata:
+      labels:
+        name: {{ $namePrefix }}-autopass-lms
+      annotations:
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        pod.boostport.com/vault-init-container: install
+    spec:
+      serviceAccountName: {{ include "autopass.rbac.sa.name" . }}
+      serviceAccount: {{ include "autopass.rbac.sa.name" . }}
+      {{- if not (eq .Values.global.securityContext.disable "true") }}
+      securityContext:
+        runAsUser: {{ default 1999 .Values.global.securityContext.user }}
+        fsGroup: {{default 1999 .Values.global.securityContext.fsGroup }}
+        runAsGroup: {{default 1999 .Values.global.securityContext.fsGroup }}
+        supplementalGroups: [{{ default 1999 .Values.global.securityContext.fsGroup }}, 65000]
+      {{- end }}
+      initContainers:
+      {{- include "helm-lib.waitForVaultNoSecurityContext" . | nindent 6 }}
+
+      - name: install
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+        env:
+        {{- if .Values.global.vaultAppRole }}
+        - name: VAULT_ROLE_ID
+          value: {{ required "Required value is not defined: vaultRoleId" .Values.global.vaultRoleId | quote }}
+        {{- end }}
+        - name: CERT_COMMON_NAME
+          value: Common_Name:{{ $namePrefix }}-autopass-lms,Additional_SAN:{{ $namePrefix }}-autopass-lms.{{ .Release.Namespace }}
+        volumeMounts:
+        - mountPath: /var/run/secrets/boostport.com
+          name: vault-token
+
+      {{- include "helm-lib.waitFor" (dict "service" (include "helm-lib.dbHost" .) "port" (include "helm-lib.dbPort" .) "Values" .Values "addSecurityContext" false) | nindent 6 }}
+
+      containers:
+      - name: kubernetes-vault-renew
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+      - name: {{ $namePrefix }}-autopass-lms
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.autopass.image }}:{{ .Values.autopass.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        resources:
+          requests:
+            cpu: 100m
+            memory: 500Mi
+          limits:
+            cpu: 2
+            memory: 2048Mi
+        volumeMounts:
+        - name: apls-conf-vol
+          mountPath: /config
+          subPath: apls
+        - name: apls-data-vol
+          mountPath: /var/opt/autopass/apls/licenseserver/data
+          subPath: apls/data
+        - name: apls-log-vol
+          mountPath: /logs
+          subPath: apls
+        {{- if .Values.global.database.tlsTruststore }}
+        - name: certificate-volume
+          mountPath: /var/opt/autopass/apls/licenseserver/data/certs
+        {{- else }}
+        # this is deprecated use case of manually copying certs to "<datavol>/apls/certs" folder.
+        - name: apls-data-vol
+          mountPath: /var/opt/autopass/apls/licenseserver/data/certs
+          subPath: apls/certs
+        {{- end }}
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+        env:
+        {{- if eq (include "helm-lib.createDb" .) "true" }}
+        - name: createDb
+          value: "true"
+        - name: admin
+          value: {{ include "helm-lib.dbAdmin" . | quote}}
+        - name: adminPasswordKey
+          value: {{ include "helm-lib.dbAdminKey" . | quote}}
+        {{- if eq (include "helm-lib.dbType" .) "postgresql" }}
+        - name: adminDbName
+          value: {{ include "helm-lib.adminDbName" . | quote}}
+        {{- end}}
+        {{- if .Values.global.database.oracleDefaultTablespace }}
+        - name: DBTABLESPACE
+          value: {{ .Values.global.database.oracleDefaultTablespace | quote }}
+        - name: DBTEMPTABLEPACE
+          value: {{ .Values.global.database.oracleTemporaryTablespace | quote }}
+        {{- end}}
+        {{- end}}
+        {{- if eq (include "helm-lib.dbType" .) "postgresql" }}
+        - name: DBTYPE
+          value: postgres
+        - name: schema
+          value: {{ include "helm-lib.dbSchema" . | quote }}
+        - name: DBNAME
+          value: {{ include "helm-lib.dbName" . | quote }}
+        {{- end}}
+        {{- if eq (include "helm-lib.dbType" .)  "oracle" }}
+        - name: DBTYPE
+          value: oracle
+        {{- if not (eq (include "helm-lib.dbOracleConnectionString" .) "") }}
+        - name: DBURL
+          value:  "jdbc:oracle:thin:@{{ include "helm-lib.dbOracleConnectionString" . }}"
+        {{- else}}
+        {{- if not (eq (include "helm-lib.dbOracleServiceName" .) "") }}
+        - name: DBSYSTEMID
+          value: servicename
+        - name: DBNAME
+          value: {{ include "helm-lib.dbOracleServiceName" . | quote}}
+        - name: adminDbName
+          value: {{ include "helm-lib.dbOracleServiceName" . | quote}}
+        {{- else}}
+        {{- if not (eq (include "helm-lib.dbOracleSid" .) "") }}
+        - name: DBNAME
+          value: {{ include "helm-lib.dbOracleSid" . | quote}}
+        - name: adminDbName
+          value: {{ include "helm-lib.dbOracleSid" . | quote}}
+        {{- else}}
+        - name: DBNAME
+          value: {{ include "helm-lib.dbName" . | quote }}
+        - name: adminDbName
+          value: {{ include "helm-lib.dbName" . | quote }}
+        {{- end}}
+        {{- end}}
+        {{- end}}
+        {{- end}}
+        - name: DBHOST
+          value: {{ include "helm-lib.dbHost" . | quote }}
+        - name: DBPORT
+          value: {{ include "helm-lib.dbPort" . | quote }}
+        - name: DBUSER
+          value: {{ include "helm-lib.dbUser" . | quote }}
+        - name: DBPASSWORD_KEY
+          value: {{ include "helm-lib.dbUserKey" . | quote }}
+        - name: DB_ENABLE_SSL
+          value: {{ include "helm-lib.dbTlsEnabled" . | quote }}
+        - name: tlsMode
+          value: verify-full
+        {{- if .Values.deployment.certs.lsServerCert }}
+        - name: LS_SERVER_CERT
+          value: {{ .Values.deployment.certs.lsServerCert | quote }}
+        {{- end }}
+        {{- if .Values.deployment.certs.lsServerKey }}
+        - name: LS_SERVER_KEY
+          value: {{ .Values.deployment.certs.lsServerKey | quote }}
+        {{- end }}
+        - name: ENABLE_MULTITENANCY
+          value: {{ .Values.deployment.multiTenant | quote }}
+        - name: FIPS_ENABLED
+          value: {{ .Values.global.enableFIPS | quote }}
+        - name: IDM_AUTH_PROVIDER_URL
+          value: {{ tpl .Values.global.idm.idmAuthUrl . | quote }}
+        - name: IDM_SERVICE_URL
+          {{- $authurl :=  tpl .Values.global.idm.idmAuthUrl  . | quote }}
+          value: {{ default $authurl .Values.global.idm.idmServiceUrl }}
+        - name: ENABLE_RBAC
+          value: {{ default "false" .Values.deployment.idm.enableRbac .| quote }}
+        - name: NUMRETRIES
+          value: "6"
+        - name: RETRYPERIOD
+          value: "10"
+        - name: RUNNING_MODE
+          value: "DEV"
+        - name: IDM_TENANT_ID
+          value: {{ default "provider" .Values.global.idm.tenant | quote }}
+        - name: VAULT_SIGNING_KEY
+          value: {{ default "VAULT_SIGNING_KEY" .Values.global.idm.signingKeySecretName | quote }}
+        - name: CALL_HOME
+          value: "False"
+        - name: IDM_TRANSPORT_USER
+          value: {{ default "transport_admin" .Values.global.idm.idmTransportUser }}
+        - name: VAULT_IDM_TRANSPORT_PASSWORD
+          value: {{ default "idm_transport_admin_password" .Values.global.idm.idmTransportPasswordKey }}
+        securityContext:
+          privileged: false
+        livenessProbe:
+          httpGet:
+          # when "host" is not defined, "PodIP" will be used
+          # host: my-host
+          # when "scheme" is not defined, "HTTP" scheme will be used. Only "HTTP" and "HTTPS" are allowed
+            scheme: HTTPS
+            path: /autopass/services/v10.1.1/version
+            port: 5814
+          initialDelaySeconds: 90
+          timeoutSeconds: 1
+          periodSeconds: 60
+          successThreshold: 1
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+          # when "host" is not defined, "PodIP" will be used
+          # host: my-host
+          # when "scheme" is not defined, "HTTP" scheme will be used. Only "HTTP" and "HTTPS" are allowed
+            scheme: HTTPS
+            path: /autopass/services/v10.1.1/version
+            port: 5814
+          initialDelaySeconds: 90
+          timeoutSeconds: 15
+          periodSeconds: 60
+          failureThreshold: 20
+      volumes:
+      - name: apls-conf-vol
+        {{- include "helm-lib.pvcStorage" (dict "claim" "configVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      - name: apls-data-vol
+        {{- include "helm-lib.pvcStorage" (dict "claim" "dataVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      - name: apls-log-vol
+        {{- include "helm-lib.pvcStorage" (dict "claim" "logVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      - name: vault-token
+        emptyDir: {}
+      {{- if .Values.global.database.tlsTruststore }}
+      - name: certificate-volume
+        configMap:
+          name: {{ .Values.global.database.tlsTruststore }}
+      {{- end }}
+
+      {{- with ( coalesce .Values.nodeSelector .Values.global.nodeSelector ) }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

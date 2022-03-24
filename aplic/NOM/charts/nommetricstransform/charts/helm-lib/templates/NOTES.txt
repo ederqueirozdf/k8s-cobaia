@@ -1,0 +1,4 @@
+(C) Copyright 2019 Micro Focus LLC.
+
+This is a utility library to assist in authoring Helm charts.  It does not deploy
+any Kubernetes resources itself.

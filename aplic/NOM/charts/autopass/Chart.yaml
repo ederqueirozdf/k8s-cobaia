@@ -1,0 +1,13 @@
+apiVersion: v1
+appVersion: 12.2.0-2021101213
+description: Micro Focus AutoPass Licensing Server
+keywords:
+- licensing
+- autopass
+maintainers:
+- email: sandeep.kotagiri@microfocus.com
+  name: sandeep
+- email: robert.balser@microfocus.com
+  name: robert
+name: autopass
+version: 12.2.06

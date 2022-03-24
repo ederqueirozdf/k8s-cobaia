@@ -1,0 +1,47 @@
+{{- if .Values.global.rbac.serviceAccountCreate }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.deployment.rbac.serviceAccount | default "itom-di-administration-sa" }}
+  namespace: {{ .Release.Namespace }}
+imagePullSecrets:
+- name: {{ .Values.global.docker.imagePullSecret | default "registrypullsecret" }}
+{{- end }}
+---
+{{- if .Values.global.rbac.roleCreate }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: "itomdi:administration"
+rules:
+- apiGroups: [""]
+  resources:  
+   - configmaps
+   - serviceaccounts
+   - pods
+   - services
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources:
+   - secrets
+  verbs: ["list", "watch", "get", "patch"]
+- apiGroups: ["apps"]
+  resources:
+   - deployments
+   - replicasets
+  verbs: ["list", "watch", "get"]
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "itomdi:administration"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: "itomdi:administration"
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.deployment.rbac.serviceAccount | default "itom-di-administration-sa" }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

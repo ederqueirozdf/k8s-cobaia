@@ -1,0 +1,164 @@
+# Default values for dp.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+dimetadataserver:
+  probe:
+    liveness:
+      enabled: true
+      initialDelaySeconds: 360
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 3
+      successThreshold: 1
+
+    readiness:
+      enabled: true
+      initialDelaySeconds: 60
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 18
+      successThreshold: 1
+  config:
+    vertica:
+      resourcePoolName: "itom_di_stream_respool"
+
+    hikaricp:
+      connectionTimeout: "60000"
+      connectionMaximumLifetime: "1800000"
+      minimumIdleConnection: "2"
+      maximumPoolSize: "10"
+      connectionPoolName: "store_once_pool"
+
+    configServer:
+      connectRetryDelayMs: "120000"
+    scheduledDataCleanupIntervalDays: "1"
+    verticaAnalyzeStatisticsIntervalDays: "-1"
+    verticaPort: 8443
+    verticaTargetPort: 8443
+    replicaCount: 1
+    processDeleteOnInitialConfiguration: "false"
+    jvmArgs: "-Xmx1024m -XX:+HeapDumpOnOutOfMemoryError"
+    logConfigFromConfigmap: true
+    allowedPercentageOfColumnsToDelete: "40%"
+
+global:
+  cluster:
+    k8sProvider: cdf
+
+  messageBus: "pulsar"
+
+  # persistence.enabled=true means that the PVCs are expected to be dynamically created by the composition chart.
+  # Otherwise, persistence.dataVolumeClaim is a persistent volume claim for storing data files.
+  # persistence.logVolumeClaim is a persistent volume claim for storing log files.
+  # If all of the above are undefined, then temporary ephemeral storage will be created (only if isDemo=true)
+  persistence:
+    enabled: false
+    configVolumeClaim:
+    logVolumeClaim:
+        
+  # For custom server CAs (incl. for Vertica). tlsTruststore should be the name of a configMap which contains the certs.
+  tlsTruststore:
+
+  # RBAC
+  rbac:
+    serviceAccountCreate: true
+    roleCreate: true
+
+  nodeSelector: {}
+
+  #Will be used as a suffix for schema names
+  di:
+    tenant: "provider"
+    deployment: "default"
+    logging:
+      useFile:
+
+  # if isDemo is true, this will allow use of ephemeral storage and other POC aspects.
+  isDemo: false
+
+  #All vertica related details are being moved into global so that it can be used across charts
+  # rwuser: Read Write vertica User
+  # rouser: Read Only user. Used only by Data Access
+  # rwuserkey: Password for Read Write vertica user
+  # rouserkey: password for Read only vertica user
+  vertica:
+    embedded: false
+    host:
+    rwuser:
+    rwuserkey: ITOMDI_DBA_PASSWORD_KEY
+    rouser:
+    rouserkey: ITOMDI_DBA_PASSWORD_KEY
+    db:
+    port:
+    tlsEnabled: "true"
+    #purgeAfterDelete: "false"
+
+  externalAccessHost:
+
+  docker:
+    # set the global.docker.registry and orgName to your internal Docker registry/org
+    registry: localhost:5000
+    orgName: hpeswitom
+    imagePullSecret: ""
+    imagePullPolicy: IfNotPresent
+
+  # User ID and group ID to run as
+  securityContext:
+    user: "1999"
+    group: "1999"
+    fsGroup: "1999"
+
+  # global image definitions
+  vaultRenew:
+    #registry: localhost:5000
+    #orgName: hpeswitom
+    image: kubernetes-vault-renew
+    imageTag: 0.10.0-0019
+  vaultInit:
+    #registry: localhost:5000
+    #orgName: hpeswitom
+    image: kubernetes-vault-init
+    imageTag: 0.10.0-0019
+  busybox:
+    image: itom-busybox
+    imageTag: 1.32.0-006
+di:
+  cloud:
+    externalAccessHost:
+      dataAccess:
+resources:
+  limits:
+    cpu: "1"
+    memory: "3072Mi"
+  requests:
+    cpu: "0.2"
+    memory: "512Mi"
+
+
+# Assigning pods to cluster nodes
+nodeSelector: {}
+deployment:
+  rbac:
+    serviceAccount: ""
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: "app"
+                operator: In
+                values:
+                  - itom-di-metadata-server
+          topologyKey: "kubernetes.io/hostname"
+
+#####################
+# Image definitions
+#####################
+metadataserver:
+  image: itom-data-ingestion-metadata-server
+  imageTag: 2.5.0-25

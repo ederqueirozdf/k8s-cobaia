@@ -1,0 +1,65 @@
+{{- if .Values.global.apphubAdmin }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: default-database-configmap
+  namespace: {{ .Release.Namespace }}
+data:
+  KUBE_SYSTEM_NAMESPACE: {{ .Release.Namespace }}
+  DEFAULT_DB_CONFIG_MAP_NAME: default-database-configmap
+  DEFAULT_DB_HOST: {{ include "helm-lib.dbHost" . | quote }}
+  DEFAULT_DB_PORT: {{ include "helm-lib.dbPort" . | quote }}
+  {{- if or (not (eq (include "helm-lib.dbType" .) "oracle")) (and (not (include "helm-lib.dbOracleConnectionString" .)) (not (include "helm-lib.dbOracleServiceName" .)) (not (include "helm-lib.dbOracleSid" .))) }}
+  DEFAULT_DB_NAME: {{ include "helm-lib.dbName" . | quote }}
+  {{- else }}
+  DEFAULT_DB_NAME: ""
+  {{- end }}
+  DEFAULT_DB_TYPE: {{ include "helm-lib.dbType" . | quote }}
+  EMBEDDED_DB: {{ include "helm-lib.dbInternal" . | quote }}
+  DEFAULT_DB_HA: "false"
+  {{- if (coalesce .Values.global.database.dbUrl .Values.deployment.database.dbUrl) }}
+  DEFAULT_DB_CONNECTION_URL: {{ include "helm-lib.dbUrl" . | quote }}
+  {{- else }}
+  DEFAULT_DB_CONNECTION_URL: ""
+  {{- end }}
+
+  DB_SSL_ENABLED: {{ include "helm-lib.dbTlsEnabled" . | quote }}
+  
+  {{- if and (eq ( include "helm-lib.dbCreateDb" . ) "true") (or (eq (include "helm-lib.dbType" .) "postgresql") (eq (include "helm-lib.dbType" .) "oracle")) }}
+  CREATE_DATABASE: "true"
+  {{- else }}
+  CREATE_DATABASE: "false"
+  {{- end }}
+  
+  {{- if .Values.global.database.tlsCert }}
+  {{ $cert := .Values.global.database.tlsCert }}
+  {{- if (contains "-----BEGIN" $cert) }}
+  DEFAULT_DB_CA: {{ .Values.global.database.tlsCert | b64enc }}
+  {{- else }}
+  DEFAULT_DB_CA: {{ .Values.global.database.tlsCert }}
+  {{- end }}
+  {{- else }}
+  DEFAULT_DB_CA: ""
+  {{- end }}
+
+  DEFAULT_DB_ORCWAY: ""
+  {{- if and (eq ( include "helm-lib.dbType" . )  "oracle") (include "helm-lib.dbOracleConnectionString" .) }}
+  DEFAULT_DB_CONNECTIONSTRING: {{ include "helm-lib.dbOracleConnectionString" . | quote }}
+  {{- else }}
+  DEFAULT_DB_CONNECTIONSTRING: ""
+  {{- end }}
+
+  {{- if and (eq ( include "helm-lib.dbCreateDb" . ) "true") (or (eq (include "helm-lib.dbType" .) "postgresql") (eq (include "helm-lib.dbType" .) "oracle")) }}
+  DEFAULT_DB_USERNAME: {{ include "helm-lib.dbAdmin" . | quote }}
+  DEFAULT_DB_PASSWORD_KEY: {{ include "helm-lib.dbAdminKey" . | quote }}
+  DEFAULT_DB_CDFIDM_USERNAME: {{ include "helm-lib.dbUser" . | quote }}
+  DEFAULT_DB_CDFIDM_PASSWORD_KEY: {{ include "helm-lib.dbUserKey" . | quote }}
+  DEFAULT_DB_SCHEMA: {{ default "cdfidm" .Values.deployment.database.schema | quote }}
+  {{- else }}
+  DEFAULT_DB_USERNAME: {{ include "helm-lib.dbUser" . | quote }}
+  DEFAULT_DB_PASSWORD_KEY: {{ include "helm-lib.dbUserKey" . | quote }}
+  DEFAULT_DB_CDFIDM_USERNAME: ""
+  DEFAULT_DB_CDFIDM_PASSWORD_KEY: ""
+  DEFAULT_DB_SCHEMA: ""
+  {{- end }}
+{{- end }}

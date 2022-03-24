@@ -1,0 +1,11 @@
+apiVersion: v2
+appVersion: 2.5.0-46
+dependencies:
+- name: helm-lib
+  version: 1.4.10
+description: Micro Focus ITOM DI Data Administration
+maintainers:
+- email: swpdl.askstoreonce@microfocus.com
+  name: ITOM-DI
+name: itomdiadministration
+version: 2.5.0-46

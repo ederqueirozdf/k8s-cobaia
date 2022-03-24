@@ -1,0 +1,35 @@
+{{ $namePrefix := include "namePrefix" . }}
+{{- if and ( .Capabilities.APIVersions.Has "monitoring.coreos.com/v1" ) .Values.global.prometheus.deployPrometheusConfig }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $namePrefix }}-idm-servicemonitor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- with .Values.global.prometheus.prometheusSelector }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    release: {{ $.Release.Name | quote }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ $namePrefix }}-idm-app
+  endpoints:
+  - port: ssl2
+    path: /idm-service/metrics
+    scheme: https
+    tlsConfig:
+      ca:
+        configMap:
+          name: public-ca-certificates
+          key: RIC_ca.crt
+      cert:
+        secret:
+          key: idm-metrics-client.crt
+          name: idm-metrics-client
+      keySecret:
+        key: idm-metrics-client.key
+        name: idm-metrics-client
+      insecureSkipVerify: false
+      serverName: {{ $namePrefix }}-idm
+{{- end }}

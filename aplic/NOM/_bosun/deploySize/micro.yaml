@@ -1,0 +1,24 @@
+# This is the resource specification for Micro size (containerized deployment)
+global:
+  nom:
+    deploySize: micro
+
+  #=========================================
+  #### NOM PVC SIZE for 3k ####
+  #=========================================
+  persistence:
+    logVolumeSize: 60Gi
+    dataVolumeSize: 60Gi
+    configVolumeSize: 5Gi
+    dbVolumeSize: 5Gi
+    monitoringVolumeSize: 5Gi
+
+nommetricstransform:
+  baseline:
+    jvmMax: "2048m"
+  deployment:
+    replicas: 2
+  resources:
+    limits:
+      cpu: "4.0"
+      memory: "3000Mi"

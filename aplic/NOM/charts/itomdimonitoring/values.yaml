@@ -1,0 +1,146 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+global:  
+  persistence:
+    enabled: false
+
+  # For custom server CAs (incl. for Vertica). tlsTruststore should be the name of a configMap which contains the certs.
+  tlsTruststore:
+
+  # If deployPrometheusConfig is true, CDF Monitoring Framework is assumed to be installed and will use it for metric storage
+  prometheus:
+    deployPrometheusConfig: true
+    prometheusSelector:
+      prometheus_config: "1"
+    scrapeCertSecretName: "itom-di-prometheus-scrape-cert"
+    deployGrafanaConfig: true
+    grafanaSelector:
+      grafana_dashboard: "1"
+
+  #Will be used as a suffix for schema names
+  di:
+    tenant: "provider"
+    deployment: "default"
+
+  # RBAC 
+  rbac:
+    serviceAccountCreate: true
+    roleCreate: true
+    clusterRoleCreate: true
+    
+  nodeSelector: {}
+
+  # If isDemo is true, this will allow use of ephemeral storage and other POC aspects.
+  isDemo: false
+
+  docker:
+    # set the global.docker.registry and orgName to your internal Docker registry/org
+    registry: localhost:5000
+    orgName: hpeswitom
+    imagePullSecret: ""
+    imagePullPolicy: IfNotPresent
+
+  vertica:
+    embedded: false
+    host: 
+    port: 
+    db: 
+    rwuser: 
+    rwuserkey: ITOMDI_DBA_PASSWORD_KEY
+    rouser: 
+    rouserkey: ITOMDI_DBA_PASSWORD_KEY
+    tlsEnabled: "true"
+    # tlsMode: "" # acceptable values ["server", "server-strict"]
+
+  securityContext:
+    user: "1999"
+    fsGroup: "1999"
+
+  # Global image references for vault
+  vaultRenew:
+    #registry:
+    #orgName:
+    image: kubernetes-vault-renew
+    imageTag: 0.10.0-0019
+  vaultInit:
+    #registry:
+    #orgName:
+    image: kubernetes-vault-init
+    imageTag: 0.10.0-0019
+  busybox:
+    image: itom-busybox
+    imageTag: 1.32.0-006
+ 
+nodeSelector: {}
+deployment:
+  rbac:
+    serviceAccount: ""
+    clusterRole: ""
+monitoring:
+  isBase64Encoded: false
+  ## Monitoring Stack: Prometheus
+  ## templates/prometheus-deployment.yaml
+  ##
+  prometheus:
+    component: prometheus
+
+  ## Monitoring Stack: Grafana
+  ## templates/grafana-deployment.yaml
+  ##
+  grafana:
+    component: grafana
+
+  verticapromexporter:
+    # registry:
+    # orgName:
+    image: itom-data-ingestion-vertica-prom-exporter
+    imageTag: 2.5.0-7
+    component: verticapromexporter
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+      limits:
+        memory: 512Mi
+        cpu: 250m
+    configData:
+      schedulerMetricsTable:
+    config:
+      queryTimeoutSec: 5
+      scrapeIntervalSec: 60
+      tableParallelism: 8
+      promtlsMode:
+      monitoringResourcePool:
+    probe:
+      readiness:
+        enabled: true
+        initialDelaySeconds: 20
+        periodSeconds: 90
+        timeoutSeconds: 5
+        failureThreshold: 1
+        successThreshold: 1
+  
+  gencerts:
+    # registry:
+    # orgName:
+    image: itom-data-ingestion-monitoring-gen-certs
+    imageTag: 2.5.0-61
+    component: gen-certs
+    scheduleCron: "* */24 * * *" # matches vault-renew refresh

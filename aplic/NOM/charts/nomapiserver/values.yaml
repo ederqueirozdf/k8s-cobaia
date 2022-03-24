@@ -1,0 +1,122 @@
+global:
+# .Values.global.externalAccessHost
+  externalAccessHost: nom-api-server.homologacao.nuvem.hm.bb.com.br
+  externalAccessPort: 443
+  docker:
+    # set the global.docker.registry and orgName to your internal Docker registry/org
+    registry: localhost:5000
+    orgName: hpeswitom 
+    imagePullSecret: ""
+    imagePullPolicy: IfNotPresent
+
+  # persistence.enabled=true means that the PVCs are expected to be dynamically created by the composition chart.
+  # Otherwise, persistence.dataVolumeClaim is a persistent volume claim for storing data files.
+  # persistence.logVolumeClaim is a persistent volume claim for storing log files.
+  # If all of the above are undefined, then temporary ephemeral storage will be created (only if isDemo=true)
+  persistence:
+    enabled: false
+    dataVolumeClaim: 
+    logVolumeClaim: 
+
+  # Set the default time to live for Jobs after finishing
+  jobs:
+    ttlSecondsAfterFinished: 1209600
+
+  # User ID and group ID to run as
+  securityContext:
+    user: "1999"
+    fsGroup: "1999"
+
+  rbac:
+    # Specifies whether a ServiceAccount should be created
+    serviceAccountCreate: true
+
+  database:
+    internal: true # default is embedded
+
+  opsbridgeIntegration:
+    isSelected: false
+
+  # Global image definitions
+  vaultRenew:
+    image: kubernetes-vault-renew
+    imageTag: 0.12.0-003
+  vaultInit:
+    image: kubernetes-vault-init
+    imageTag: 0.12.0-003
+  busybox:
+    image: itom-busybox
+    imageTag: ${image.busybox.version}
+  opensuse:
+    image: opensuse-base
+    imageTag: 15.3-0028
+
+  nginx:
+    annotationPrefix:
+  #Properties for Optic Reporting
+  services:
+    sharedOpticReporting: false
+    namespace:
+    external:
+      host:
+      port:
+    internal:
+      host:
+      port:
+    diAdminPort:
+    diDataAccessPort:
+    diPulsarPort:
+
+
+# Assigning pods to cluster nodes
+nodeSelector:
+  Worker: label
+tolerations: []
+affinity: {}
+
+nom:
+  mixedMode: false
+
+na:
+  url:
+nnmi:
+  url:
+  failoverUrl:
+
+coso:
+  diAdminSvc:
+    host: itom-di-administration-svc
+    port: 8443
+  diDataAccessSvc:
+    host: itom-di-data-access-svc
+    port: 8443
+
+deployment:
+  # by default upload the AutoPass PD file, but composition chart can disable
+  uploadAutoPassLicense: true
+
+  idm:
+    # IDM now has a name prefix, which can be changed by composition chart.
+    namePrefix: "itom-"
+    service: idm-svc
+    port: 18443
+    user: nomadmin
+    passwordKey: idm_nom_admin_password
+
+  zookeeper:
+    name: nomzk-client-svc
+    port: 2181
+    user: nomadmin
+    passwordKey: NOM_ZK_ADMIN_PASSWORD_VAULT_KEY
+
+  replicas: 3
+
+#####################
+# Image definitions
+#####################
+apiServer:
+  image: itom-nom-api-server
+  imageTag: 1.1.192
+nomConfig:
+  image: itom-nom-config
+  imageTag: 2.2.73

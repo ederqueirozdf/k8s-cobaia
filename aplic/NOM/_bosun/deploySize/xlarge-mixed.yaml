@@ -1,0 +1,20 @@
+# This is the resource specification for Very Large size (classic deployment)
+global:
+  nom:
+    deploySize: vlarge
+
+nommetricstransform:
+  baseline:
+    jvmMax: "5120m"
+  deployment:
+    replicas: 4
+  resources:
+    limits:
+      cpu: "7.0"
+      memory: "8192Mi"
+
+itomdipulsar:
+  bookkeeper:
+    volumes:
+      ledgers:
+        size: "280Gi"

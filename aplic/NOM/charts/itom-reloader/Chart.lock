@@ -1,0 +1,6 @@
+dependencies:
+- name: helm-lib
+  repository: https://svsartifactory.swinfra.net/artifactory/itom-helm-group
+  version: 1.5.28
+digest: sha256:a7324f8c6600b890f4d0166897b133e6b757130e9bddfa7cfe3bda47d6ba88c0
+generated: "2021-10-25T11:12:35.410989992Z"

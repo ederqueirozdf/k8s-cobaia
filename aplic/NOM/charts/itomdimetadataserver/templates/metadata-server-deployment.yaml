@@ -1,0 +1,305 @@
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    app.kubernetes.io/name: itom-di-metadata-server-svc
+    app.kubernetes.io/managed-by: {{.Release.Name}}
+    app.kubernetes.io/version: {{.Values.metadataserver.imageTag}}
+    itom.microfocus.com/capability: itom-data-ingestion
+    tier.itom.microfocus.com/backend: backend
+  name: itom-di-metadata-server-svc
+spec:
+  selector:
+    app: itom-di-metadata-server
+  ports:
+  - protocol: TCP
+    name: metadata-server-port
+    port: {{ .Values.dimetadataserver.config.verticaPort }}
+    targetPort: {{ .Values.dimetadataserver.config.verticaTargetPort }}
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: itom-di-metadata-server
+  labels:
+    app.kubernetes.io/name: itom-di-metadata-server
+    app.kubernetes.io/managed-by: {{.Release.Name}}
+    app.kubernetes.io/version: {{.Values.metadataserver.imageTag}}
+    itom.microfocus.com/capability: itom-data-ingestion
+    tier.itom.microfocus.com/backend: backend
+    app: itom-di-metadata-server
+  annotations:
+    deployment.microfocus.com/default-replica-count: "1"
+    deployment.microfocus.com/runlevel: UP
+    {{- if .Values.global.tlsTruststore }}
+    configmap.reloader.stakater.com/reload: "{{ .Values.global.tlsTruststore }}"
+    {{- end }}
+spec:
+  replicas: {{ .Values.dimetadataserver.config.replicaCount }}
+  selector:
+    matchLabels:
+      app: itom-di-metadata-server
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: itom-di-metadata-server
+        app.kubernetes.io/managed-by: {{.Release.Name}}
+        app.kubernetes.io/version: {{.Values.metadataserver.imageTag}}
+        itom.microfocus.com/capability: itom-data-ingestion
+        tier.itom.microfocus.com/backend: backend
+        app: itom-di-metadata-server
+      annotations:
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        pod.boostport.com/vault-init-container: install
+    spec:
+      securityContext:
+        runAsUser: {{ .Values.global.securityContext.user }}
+        runAsGroup: {{ .Values.global.securityContext.group }}
+        fsGroup: {{ .Values.global.securityContext.fsGroup }}      
+      serviceAccount: {{ .Values.deployment.rbac.serviceAccount | default "itom-di-metadata-server-sa" }}
+      serviceAccountName: {{ .Values.deployment.rbac.serviceAccount | default "itom-di-metadata-server-sa" }}   
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+      initContainers:
+      {{- include "helm-lib.waitForVault" . | nindent 6 }}
+      - name: waitfor-vertica-service
+        {{- if (eq (.Values.global.vertica.embedded | toString) "true") }}
+        {{- $vh := "itom-di-vertica-svc" }}
+        {{- $vp := "5444" -}}
+        {{- $fvnode := "itom-di-vertica-svc" }}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.busybox.image }}:{{ .Values.global.busybox.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        command: [ "sh", "-c", "until nc -z {{$fvnode}} {{$vp}} -w 5 ; do echo waiting for {{$fvnode}}:{{$vp}}...; sleep 5; done; exit 0"]
+        resources: {}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.securityContext.user }}
+          runAsGroup: {{ .Values.global.securityContext.fsGroup }}
+        {{- else -}}
+        {{- $vh := .Values.global.vertica.host }}
+        {{- $vp := .Values.global.vertica.port }}
+        {{- $fvnode := $vh }}
+        {{- $firstvertnode := split "," $vh }}
+        {{- $fvnode := $firstvertnode._0 }}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.busybox.image }}:{{ .Values.global.busybox.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        command: [ "sh", "-c", "cmd=''; vh_local={{$vh}}; vp_local={{$vp}}; for i in $(echo $vh_local | sed 's/,/ /g' | awk '{$1=$1};1'); do cmd=$(echo $cmd '|| nc -z '$i' '$vp_local' -w 5 '); done; cmd=${cmd:3}; echo 'command is : '$cmd''; until eval $(echo $cmd); do echo 'waiting for '$vh_local' with port '$vp_local' ... '; sleep 5; done; exit 0;"]
+        resources: {}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.securityContext.user }}
+          runAsGroup: {{ .Values.global.securityContext.fsGroup }}
+        {{- end }}
+
+      - name: install
+        {{- if and .Values.global.vaultInit.registry .Values.global.vaultInit.orgName }}
+        image: {{ .Values.global.vaultInit.registry }}/{{ .Values.global.vaultInit.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+    	{{- else}}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+    	{{- end}}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        env:
+        {{- if .Values.global.vaultAppRole }}
+        - name: VAULT_ROLE_ID
+          value: {{ required "Required value is not defined: vaultRoleId" .Values.global.vaultRoleId | quote }}
+        {{- end }}
+        - name: CERT_COMMON_NAME
+          value: "itom-di-metadata-server-svc"
+        resources: {}
+        securityContext:
+          runAsUser: {{ .Values.global.securityContext.user }}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+      containers:
+        - name: itom-di-metadata-server
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.metadataserver.image }}:{{ .Values.metadataserver.imageTag }}
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          {{- if .Values.dimetadataserver.probe.liveness.enabled }}
+          livenessProbe:
+            exec:
+              command:
+              - "/metadata-server/bin/liveness.sh"
+            initialDelaySeconds: {{ .Values.dimetadataserver.probe.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.dimetadataserver.probe.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.dimetadataserver.probe.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.dimetadataserver.probe.liveness.failureThreshold }}
+            successThreshold: {{ .Values.dimetadataserver.probe.liveness.successThreshold }}
+          {{- end }}
+          {{- if .Values.dimetadataserver.probe.readiness.enabled }}
+          readinessProbe:
+            exec:
+              command:
+              - "/metadata-server/bin/readiness.sh"
+            initialDelaySeconds: {{ .Values.dimetadataserver.probe.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.dimetadataserver.probe.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.dimetadataserver.probe.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.dimetadataserver.probe.readiness.failureThreshold }}
+            successThreshold: {{ .Values.dimetadataserver.probe.readiness.successThreshold }}
+          {{- end }}
+          env:
+            # SSL
+            # SSl mode Connection. Default Value is true
+            - name: METADATA_SERVER_UID
+              value: {{ .Values.global.securityContext.user | quote }}
+            - name: METADATA_SERVER_GID
+              value: {{ .Values.global.securityContext.fsGroup | quote }}
+            - name: DATABASE_SSL
+              value: {{ .Values.global.vertica.tlsEnabled | quote }}
+            - name: DATABASE_HOST
+              value: {{ template "vertica.host" .}}
+            - name: DATABASE_PORT
+              value: {{ template "vertica.port" .}}
+            - name: DATABASE_NAME
+              value: {{ template "vertica.db" .}}
+            - name: DATABASE_USER
+              value: {{ template "vertica.rwuser" .}}
+            - name: DATABASE_RO_USER
+              value: {{ template "vertica.rouser" .}}
+            - name: METADATA_SERVER_BASE_URL
+              value: {{ template "externalaccess.hostname" .}}
+            - name: LOGCONFIG_FROM_CONFIGMAP
+              value: {{ .Values.dimetadataserver.config.logConfigFromConfigmap | quote }}
+          {{- if and (.Values.global.vertica.resourcepoolname) (not .Values.global.vertica.embedded ) }}
+            - name: DATABASE_USER_MANAGED_RESOURCE_POOL
+              value: "true"
+            - name: DATABASE_RESOURCE_POOL
+              value: {{ .Values.global.vertica.resourcepoolname }}
+          {{- else }}
+            - name: DATABASE_USER_MANAGED_RESOURCE_POOL
+              value: "false"
+          {{- end }}
+            # For accessing vertica password value from vault
+            - name: DATABASE_PASSWORD_KEY
+              value: {{ .Values.global.vertica.rwuserkey | quote }}
+            - name: DATABASE_RO_PASSWORD_KEY
+              value: {{ .Values.global.vertica.rouserkey | quote }}
+            - name: HIKARICP_CONNECTION_TIMEOUT
+              value: {{ .Values.dimetadataserver.config.hikaricp.connectionTimeout | quote }}
+            - name: HIKARICP_CONNECTION_MAXIMUM_LIFETIME
+              value: {{ .Values.dimetadataserver.config.hikaricp.connectionMaximumLifetime | quote }}
+            - name: HIKARICP_MINIMUM_IDLE_CONNECTIONS
+              value: {{ .Values.dimetadataserver.config.hikaricp.minimumIdleConnection | quote }}
+            - name: HIKARICP_MAXIMUM_POOL_SIZE
+              value: {{ .Values.dimetadataserver.config.hikaricp.maximumPoolSize | quote }}
+            - name: HIKARICP_CONNECTION_POOL_NAME
+              value: {{ .Values.dimetadataserver.config.hikaricp.connectionPoolName | quote }}
+            - name: HIKARICP_IDLE_SESSION_TIMEOUT
+              value: {{ .Values.dimetadataserver.config.hikaricp.idleSessionTimeOut | quote }}              
+            # Data Retention parameters
+            - name: SCHEDULED_DATA_CLEANUP_INTERVAL_DAYS
+              value: {{.Values.dimetadataserver.config.scheduledDataCleanupIntervalDays | quote }}
+            - name: DATABASE_ANALYZE_STATISTICS_INTERVAL_DAYS
+              value: {{.Values.dimetadataserver.config.verticaAnalyzeStatisticsIntervalDays | quote }}
+            # For JVM args
+            - name: JAVA_OPTS
+              value: {{ .Values.dimetadataserver.config.jvmArgs }}
+            #Tenant and Deployment
+            {{ include "validateTenantAndDeploymentForMetadataServer" . | required "The total length of tenant and deployment should not be more than 70 characters" }}
+            - name: PURGE_AFTER_DELETE
+              value: {{ default "false" .Values.global.vertica.purgeAfterDelete | quote }}
+            - name: PROCESS_DELETE_ON_INITIAL_CONFIGURATION
+              value: {{ default "false" .Values.dimetadataserver.config.processDeleteOnInitialConfiguration | quote }}
+            - name: NODE_NAME
+              valueFrom:
+               fieldRef:
+                fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+               fieldRef:
+                fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+               fieldRef:
+                fieldPath: metadata.namespace
+            - name: CONTAINER_NAME
+              value: metadata-server
+            # Hibernate batch size
+            - name: JDBC_BATCH_SIZE
+              value: "100"
+            # Config Client Environment Variables
+            - name: CONFIG_STORE_DB_ENABLE
+              value: "true"
+            - name: CONFIG_SERVER_SERVICE_NAME
+              value: "itom-di-administration-svc"
+            - name: CONFIG_SERVER_SERVICE_PORT
+              value: "18443"
+            - name: CLIENT_HEART_BEAT_MS
+              value: "0"
+            - name: SERVER_HEART_BEAT_MS
+              value: "0"
+            - name: CONNECT_RETRY_DELAY_MS
+              value: {{ default "120000" .Values.dimetadataserver.config.configServer.connectRetryDelayMs | quote }}
+            - name: AUTO_RESTART_ON_ERROR
+              value: "true"
+            - name: CONFIG_CLIENT_NOTIFICATION_PROCESSING_NUMTHREADS
+              value: "5"
+            - name: ALLOWED_PERCENTAGE_OF_COLUMNS_TO_DELETE
+              value: {{.Values.dimetadataserver.config.allowedPercentageOfColumnsToDelete | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: vault-token
+              mountPath: /var/run/secrets/boostport.com
+            - name: cm-logback
+              mountPath: /mnt/itom/metadata-server/app-conf/logback
+            - name: metadata-server-log-vol
+              mountPath: /mnt/itom/metadata-server/log
+            - name: secret-volume
+              mountPath: /mnt/itom/metadata-server/ssl/server-cas
+        - name: kubernetes-vault-renew
+        {{- if and .Values.global.vaultRenew.registry .Values.global.vaultRenew.orgName }}
+          image: {{ .Values.global.vaultRenew.registry }}/{{ .Values.global.vaultRenew.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+     	{{- else }}
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+        {{- end }}
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/boostport.com
+
+      {{- with ( coalesce .Values.nodeSelector .Values.global.nodeSelector ) }}
+      nodeSelector:
+        {{ toYaml . }}
+      {{- end }}
+
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      volumes:
+        - name: cm-logback
+          configMap:
+            name: metadata-server-logback-cm
+        - name: metadata-server-vol
+          {{- include "helm-lib.pvcStorage" (dict "claim" "configVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 10 }}
+        - name: metadata-server-log-vol
+          {{- include "helm-lib.pvcStorage" (dict "claim" "logVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 10 }}
+        - name: secret-volume
+          projected:
+            sources:
+            - secret:
+                name: metadata-server-secret
+          {{- if .Values.global.tlsTruststore }}
+            - configMap:
+                name: {{ .Values.global.tlsTruststore }}
+          {{- end }}
+        - name: vault-token
+          emptyDir: {}
