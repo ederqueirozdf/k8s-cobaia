@@ -1,0 +1,324 @@
+{{ $namePrefix := include "namePrefix" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $namePrefix }}-idm
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ $namePrefix }}-idm-app
+    deployments.microfocus.com/component: itom-idm
+  annotations:
+    deployment.microfocus.com/default-replica-count: "{{ .Values.deployment.replicas | default 2 }}"
+    deployment.microfocus.com/runlevel: STANDBY
+spec:
+  replicas: {{ .Values.deployment.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $namePrefix }}-idm-app
+  template:
+    metadata:
+      labels:
+        app: {{ $namePrefix }}-idm-app
+        deployments.microfocus.com/component: itom-idm
+      annotations:
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        pod.boostport.com/vault-init-container: install
+    spec:
+      securityContext:
+        runAsUser: {{ default 1999 .Values.global.securityContext.user }}
+        runAsGroup: {{ default 1999 .Values.global.securityContext.fsGroup }}
+        fsGroup: {{ default 1999 .Values.global.securityContext.fsGroup }}
+        supplementalGroups: [{{ default 1999 .Values.global.securityContext.fsGroup }}]
+      serviceAccountName: {{ template "itom-idm.serviceAccountName" . }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ $namePrefix }}-idm-app
+              topologyKey: "kubernetes.io/hostname"
+      {{- with ( coalesce .Values.nodeSelector .Values.global.nodeSelector ) }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      {{- include "helm-lib.waitForVaultNoSecurityContext" . | nindent 6 }}
+      - name: install
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+        env:
+        {{- $idmServiceName := ( printf "%s-idm-svc" $namePrefix ) }}
+        - name: CERT_COMMON_NAME
+        {{- if .Values.global.prometheus.deployPrometheusConfig }}
+          value: {{ include "idm.cert" . }};{{ include "idm-metrics.cert" . }}
+        {{- else }}
+          value: {{ include "idm.cert" . }}
+        {{- end }}
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+      {{- include "helm-lib.waitFor" (dict "service" (include "helm-lib.dbHost" .) "port" (include "helm-lib.dbPort" .) "Values" .Values "addSecurityContext" false) | nindent 6 }}
+      containers:
+      - name: kubernetes-vault-renew
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+      - name: idm
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.idm.image }}:{{ .Values.idm.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        {{- with .Values.deployment.resources }}
+        resources:
+        {{- toYaml . | nindent 10 }}
+        {{- end }}
+        livenessProbe:
+          httpGet:
+            path: /idm-service/api/version-info
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+        readinessProbe:
+          httpGet:
+            path: /idm-service/api/readiness
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.readinessProbe.successThreshold }}
+          failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+        command:
+        - sh
+        - /startidm.sh
+        env:
+        - name: IDM_MOUNT_ROOT
+          value: /etc/idm
+        {{- if and (eq ( include "helm-lib.dbCreateDb" . ) "true") (or (eq (include "helm-lib.dbType" .) "postgresql") (eq (include "helm-lib.dbType" .) "oracle")) }}
+        - name: CREATE_DATABASE
+          value: "true"
+        {{- else }}
+        - name: CREATE_DATABASE
+          value: "false"
+        {{- end }}
+        {{- if eq ( include "helm-lib.dbType" . )  "oracle" }}
+        {{- if include "helm-lib.dbOracleConnectionString" . }}
+        - name: ORACLE_CONNECTION_STRING
+          value: {{ include "helm-lib.dbOracleConnectionString" . | quote }}
+        {{- end }}
+        {{- if include "helm-lib.dbOracleServiceName" . }}
+        - name: ORACLE_SERVICE_NAME
+          value: {{ include "helm-lib.dbOracleServiceName" . | quote }}
+        {{- end }}
+        {{- if include "helm-lib.dbOracleSid" . }}
+        - name: ORACLE_SID
+          value: {{ include "helm-lib.dbOracleSid" . | quote }}
+        {{- end }}
+        {{- end }}
+        # DB connection details
+        - name: DATABASE_HOST
+          value: {{ include "helm-lib.dbHost" . | quote }}
+        - name: DATABASE_PORT
+          value: {{ include "helm-lib.dbPort" . | quote }}
+        - name: DATABASE_TYPE
+          value: {{ include "helm-lib.dbType" . | quote }}
+        {{- if or (not (eq (include "helm-lib.dbType" .) "oracle")) (and (not (include "helm-lib.dbOracleConnectionString" .)) (not (include "helm-lib.dbOracleServiceName" .)) (not (include "helm-lib.dbOracleSid" .))) }}
+        - name: DATABASE_NAME
+          value: {{ include "helm-lib.dbName" . | quote }}
+        {{- end }}
+        {{- if (coalesce .Values.global.database.dbUrl .Values.deployment.database.dbUrl) }}
+        - name: DEFAULT_DB_CONNECTION_URL
+          value: {{ include "helm-lib.dbUrl" . | quote }}
+        {{- end }}
+        - name: DB_SSL_ENABLED
+          value: {{ include "helm-lib.dbTlsEnabled" . | quote }}
+
+        # IDM's database name, schema and user
+        {{- if and (eq ( include "helm-lib.dbCreateDb" . ) "true") (or (eq (include "helm-lib.dbType" .) "postgresql") (eq (include "helm-lib.dbType" .) "oracle")) }}
+        - name: DATABASE_USERNAME
+          value: {{ include "helm-lib.dbAdmin" . | quote }}
+        - name: DATABASE_PASSWORD_KEY
+          value: {{ include "helm-lib.dbAdminKey" . | quote }}
+        - name: DEFAULT_DB_CDFIDM_USERNAME
+          value: {{ include "helm-lib.dbUser" . | quote }}
+        - name: DEFAULT_DB_CDFIDM_PASSWORD_KEY
+          value: {{ include "helm-lib.dbUserKey" . | quote }}
+        - name: DEFAULT_DB_CDFIDM_SCHEMA_NAME
+          value: {{ default "cdfidm" .Values.deployment.database.schema | quote }}
+        {{- else }}
+        - name: DATABASE_USERNAME
+          value: {{ include "helm-lib.dbUser" . | quote }}
+        - name: DATABASE_PASSWORD_KEY
+          value: {{ include "helm-lib.dbUserKey" . | quote }}
+        {{- end }}
+        - name: SYNC_PASSWORD_FROM_VAULT
+          value: "true"
+        - name: SEEDED_JSON_DIR
+          value: /etc/seeded
+        - name: HPSSO_INIT_STRING_ENCODING
+          value: {{ .Values.deployment.hpssoInitStrEncoding | quote }}
+        - name: HPSSO_INIT_STRING_KEY
+          value: {{ coalesce .Values.global.idm.hpssoInitStrSecretName .Values.deployment.hpssoInitStrSecretName "HPSSO_INIT_STRING_KEY" | quote }}
+        - name: VAULT_SIGNING_KEY
+          value: {{ coalesce .Values.global.idm.signingKeySecretName .Values.deployment.signingKeySecretName "IDM_SIGNING_KEY" | quote }}
+        - name: HPSSO_DOMAIN_NAME
+          value: {{ coalesce .Values.global.idm.hpssoDomainName .Values.deployment.hpssoDomainName (tpl .Values.global.externalAccessHost .) | quote }}
+        - name: UPDATE_SYSTEM_RESOURCE_CONFIG
+          value: "true"
+        - name: IDM_CERT_FILE
+          value: /var/run/secrets/boostport.com/server.crt
+        - name: IDM_KEY_FILE
+          value: /var/run/secrets/boostport.com/server.key
+        - name: IDM_CA_FILE
+          value: /var/run/secrets/boostport.com/issue_ca.crt
+        - name: ENABLE_IDM_ADMIN
+          value: "true"
+        - name: ADMIN_IDM_SERVER_URL
+          value: https://{{ .Values.global.externalAccessHost }}:{{ .Values.global.externalAccessPort }}/idm-service
+        - name: ADMIN_IDM_SERVER_URL_INTERNAL
+          value: https://{{ $idmServiceName }}:{{ default "18443" .Values.service.portssl }}/idm-service
+        - name: ADMIN_TENANT_NAME
+          value: {{ coalesce .Values.global.idm.tenant .Values.deployment.tenant "provider" | quote }}
+        - name: ADMIN_INTEGRATION_USERNAME
+          value: transport_admin
+        - name: ADMIN_INTEGRATION_PASSWORD_VAULT_KEY
+          value: idm_transport_admin_password
+        - name: SYNC_VAULT_KEYS
+          value: {{ ( printf "idm.encryptedSigningKey=%s,hpssoConfig.global.lwsso.crypto.initString=%s" (coalesce .Values.global.idm.signingKeySecretName .Values.deployment.signingKeySecretName "IDM_SIGNING_KEY") (coalesce .Values.global.idm.hpssoInitStrSecretName .Values.deployment.hpssoInitStrSecretName "HPSSO_INIT_STRING_KEY")) | quote }}
+        - name: MY_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: MY_CONTAINER_NAME
+          value: {{ $namePrefix }}-idm
+        - name: SECURITY_PROFILE
+          value: legacy
+        - name: ENABLE_FIPS
+          value: {{ (coalesce .Values.global.enableFIPS .Values.global.fipsMode) | quote }}
+        # Should be the one can be writen in container
+        - name: IDM_LOG_PATH
+          value: /var/logs/idm
+        {{- if .Values.global.proxy.https_proxy }}
+        - name: HTTPS_PROXY
+          value: "{{ .Values.global.proxy.https_proxy }}"
+        {{- end }}
+        {{- if .Values.global.proxy.http_proxy }}
+        - name: HTTP_PROXY
+          value: "{{ .Values.global.proxy.http_proxy }}"
+        {{- end }}
+        - name: NO_PROXY
+        {{- if .Values.global.proxy.no_proxy }}
+          value: "{{ .Values.global.proxy.no_proxy }}"
+        {{- else }}
+          value: "127.0.0.1/localhost"
+        {{- end }}
+        {{- if .Values.global.prometheus.deployPrometheusConfig }}
+        - name: IDM_FEATURES
+          value: "METRICS={{ .Values.global.prometheus.deployPrometheusConfig }}"
+        {{- end }}
+        # audit client configuration
+        - name: AUDIT_CONFIG_PATH
+          value: /var/logs/idm/audit_config
+        - name: AUDIT_ENGINE_HOSTNAME
+          value: {{ .Values.global.audit.auditServiceConfig.auditEngineHostname | quote }}
+        - name: AUDIT_ENGINE_PORT
+          value: {{ .Values.global.audit.auditServiceConfig.auditEnginePort | quote }}
+        - name: AUDIT_INTEGRATION_TENANT
+          value: {{ .Values.global.audit.auditServiceConfig.auditIntegrationTenant | quote }}
+        - name: AUDIT_INTEGRATION_USER
+          value: {{ .Values.global.audit.auditServiceConfig.auditIntegrationUser | quote }}
+        - name: AUDIT_INTEGRATION_USER_PASSWORD_KEY
+          value: {{ .Values.global.audit.auditServiceConfig.auditIntegrationUserPasswordKey | quote }}
+        - name: AUDIT_IDM_SVC_HOST
+          value: {{ .Values.global.audit.auditServiceConfig.auditIdmSvcHost | quote }}
+        - name: AUDIT_IDM_SVC_PORT
+          value: {{ .Values.global.audit.auditServiceConfig.auditIdmSvcPort | quote }}
+        - name: CREATE_AUDIT_ENABLED_FOR_CLIENT
+          value: {{ .Values.global.audit.auditServiceConfig.createAuditEnabledForClient | quote }}
+        - name: MOCK_AUDIT_ENABLE
+          value: {{ .Values.global.audit.auditServiceConfig.mock | quote }}
+        - name: AUDIT_CLIENT_CONFIG_REFRESH_INTERVAL
+          value: {{ .Values.global.audit.auditServiceConfig.auditClientConfigRefreshInterval | quote }}
+        volumeMounts:
+        - name: suite-metadata
+          mountPath: /var/data
+        {{- if .Values.global.database.tlsTruststore }}
+        - name: cert-volume
+          mountPath: /opt/assets/certificates
+        {{- end }}
+        - name: secret-volume
+          mountPath: /opt/assets/secrets
+        - name: seededdir
+          mountPath: /etc/idm/seeded
+          readOnly: true
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+        - name: log-dir
+          mountPath: /var/logs
+        - name: jvm-ext
+          mountPath: /usr/lib/jvm/zulu-8-amd64/jre/lib/ext
+        - name: jvm-security
+          mountPath: /usr/lib/jvm/zulu-8-amd64/jre/lib/security
+        - name: tomcat
+          mountPath: /opt/apache-tomcat
+        - name: idmtools
+          mountPath: /idmtools
+      {{- if or .Values.deployment.tolerations .Values.global.cluster.tolerations }}
+      tolerations:
+      {{- if .Values.deployment.tolerations }}
+      {{- toYaml .Values.deployment.tolerations | nindent 8 }}
+      {{- end }}
+      {{- if .Values.global.cluster.tolerations }}
+      {{- toYaml .Values.global.cluster.tolerations | nindent 8 }}
+      {{- end }}
+      {{- end }}
+      volumes:
+      - name: suite-metadata
+      {{- include "helm-lib.pvcStorage" (dict "claim" "dataVolumeClaim  " "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      {{- if .Values.global.database.tlsTruststore }}
+      - name: cert-volume
+        configMap:
+          name: {{ .Values.global.database.tlsTruststore }}
+      {{- end }}
+      - name: secret-volume
+        secret:
+          secretName: {{ $namePrefix }}-idm
+      - name: seededdir
+        configMap:
+          name: {{ .Values.deployment.seededConfigMapName | default "idm-conf-file" }}
+      - name: log-dir
+        {{- include "helm-lib.pvcStorage" (dict "claim" "logVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      - name: vault-token
+        emptyDir: {}
+      - name: jvm-ext
+        emptyDir: {}
+      - name: jvm-security
+        emptyDir: {}
+      - name: tomcat
+        emptyDir: {}
+      - name: idmtools
+        emptyDir: {}

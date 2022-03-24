@@ -1,0 +1,22 @@
+{{- if .Values.params.capability.reporting }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: bvd-quexserv
+  namespace: {{ .Release.Namespace }}
+  labels:
+    service: bvd-quexserv
+    app.kubernetes.io/name: bvd-quexserv
+    app.kubernetes.io/managed-by: bvd-config
+    app.kubernetes.io/version: {{ .Values.bvd.imageTag }}
+    itom.microfocus.com/capability: bvd  
+    tier.itom.microfocus.com/queryServerService: queryServerService 
+spec:
+  ports:
+  - name: quexserv
+    port: 4000
+    protocol: TCP
+    targetPort: 4000
+  selector:
+    service: bvd-quexserv
+{{- end }}

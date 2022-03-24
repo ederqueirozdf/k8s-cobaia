@@ -1,0 +1,127 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bvd-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: bvd
+    app.kubernetes.io/name: bvd-config
+    app.kubernetes.io/managed-by: bvd-config
+    app.kubernetes.io/version: {{ .Values.bvd.imageTag }}
+    itom.microfocus.com/capability: bvd
+    tier.itom.microfocus.com/config: config
+data:
+  {{- if .Values.global.vaultAppRole }}
+  bvd.approle: "{{ .Values.global.vaultAppRole }}"
+  bvd.approleid: "{{ .Values.global.vaultRoleId }}"
+  {{- else }}
+  bvd.approle: "default"
+  bvd.approleid: "WhyIsThisRequired"
+  {{- end }}
+  {{ include "bvd.verticaDBSettings" (dict "Values" .Values) }}
+  bvd.exploreContextRoot: "{{ .Values.params.exploreContextRoot }}"
+  bvd.bvdContextRoot: "{{ .Values.params.bvdContextRoot }}"
+  bvd.redisport: "6380"
+  bvd.redishost: "bvd-redis"
+  bvd.redispassword.key: "redis_pwd"
+  bvd.adminname.key: "bvd_admin_login"
+  bvd.adminpassword.key: "bvd_admin_password"
+  bvd.adminrole: {{ .Values.params.adminRole | quote }}
+  bvd.apikey.key: "bvd_api_key"
+  {{- if .Values.smtpServer.host }}
+  bvd.smtphost: {{ .Values.smtpServer.host | quote }}
+  {{- end }}
+  {{- if .Values.smtpServer.port }}
+  bvd.smtpport: {{ .Values.smtpServer.port | quote }}
+  {{- end }}
+  {{- if .Values.smtpServer.user }}
+  bvd.smtpuser: {{ .Values.smtpServer.user | quote }}
+  {{- end }}
+  bvd.smtppassword.key: {{ .Values.smtpServer.passwordKey | quote }}
+  bvd.smtpsecurity: {{ .Values.smtpServer.security | default "TLS" | quote }}
+  bvd.UseTLS: "true"
+  bvd.collectPrometheusMetrics: "true"
+  bvd.systemUID: {{ .Values.global.securityContext.user | int64 | quote }}
+  bvd.systemGID: {{ .Values.global.securityContext.fsGroup | int64 | quote }}
+  {{ include "bvd.dbsettings" (dict "Values" .Values "Release" .Release "Template" .Template) }}
+  bvd.dbhost: {{ include "helm-lib.dbHost" . | quote }}
+  bvd.dbport: {{ include "helm-lib.dbPort" . | quote }}
+  {{- if eq (include "helm-lib.dbType" . ) "postgresql" }}
+  bvd.dbType: "Postgresql"
+  bvd.dbname: {{ include "helm-lib.dbName" . | quote }}
+  {{- else }}
+  bvd.dbType: "ORACLE Server"
+  bvd.dbname: ""
+  {{- end }}
+  bvd.dbsid: {{ include "helm-lib.dbOracleSid" . | quote }}
+  {{- $oraProtocol := "TCP" }}
+  {{- if eq (include "helm-lib.dbTlsEnabled" . ) "true" }}
+  {{- $oraProtocol = "TCPS" }}
+  {{- end }}
+  {{- $oraConnectionString := include "helm-lib.dbOracleConnectionString" . }}
+  {{- $oraServiceName := include "helm-lib.dbOracleServiceName" . }}
+  {{- if $oraConnectionString }}
+  bvd.dbConnectionString: {{ $oraConnectionString | quote }}
+  {{- else if $oraServiceName }}
+  bvd.dbConnectionString: "(DESCRIPTION=(ADDRESS=(PROTOCOL={{ $oraProtocol }})(HOST={{ include "helm-lib.dbHost" . }})(PORT={{ include "helm-lib.dbPort" . }}))(CONNECT_DATA=(SERVICE_NAME={{ $oraServiceName }})))"
+  {{- else }}
+  bvd.dbConnectionString: ""
+  {{- end }}
+  bvd.createDB: {{ include "helm-lib.dbCreateDb" . | quote }}
+  {{- if eq (include "helm-lib.dbCreateDb" . ) "true" }}
+  bvd.dbAdminUser: {{ include "helm-lib.dbAdmin" . | quote }}
+  bvd.dbAdminPassword.key: {{ include "helm-lib.dbAdminKey" . | quote }}
+  {{- if .Values.global.database.dbName }}
+  bvd.dbAdmin.dbName: {{ .Values.global.database.dbName | quote }}
+  {{- end }}
+  {{- end }}
+  bvd.dbuser: {{ include "helm-lib.dbUser" . | quote }}
+  bvd.dbpassword.key: {{ include "helm-lib.dbUserKey" . | quote }}
+  bvd.dbUseTLS: {{ include "helm-lib.dbTlsEnabled" . | quote }}
+  bvd.timeFormat: "{{ .Values.params.timeFormat }}"
+  bvd.reqTimeout: "{{ .Values.params.reqTimeout }}"
+  {{- if .Values.params.suite.logo }}
+  suite.suitelogo: {{ .Values.params.suite.logo | quote }}
+  {{- end }}
+  {{- if .Values.params.suite.favicon }}
+  suite.suitefavicon: {{ .Values.params.suite.favicon | quote }}
+  {{- end }}
+  {{- if .Values.params.suite.name }}
+  suite.suitename: {{ .Values.params.suite.name | quote }}
+  {{- end }}
+  {{- if .Values.params.suite.logo_large }}
+  suite.logo_large: {{ .Values.params.suite.logo_large | quote }}
+  {{- end }}
+  {{- if .Values.params.suite.family_color }}
+  suite.family_color: {{ .Values.params.suite.family_color | quote }}
+  {{- end }}
+  {{- if .Values.params.suite.family_name }}
+  suite.family_name: {{ .Values.params.suite.family_name | quote }}
+  {{- end }}
+  {{- if .Values.params.suite.family_icon_letter }}
+  suite.family_icon_letter: {{ .Values.params.suite.family_icon_letter | quote }}
+  {{- end }}
+  {{- if .Values.params.suite.printtool }}
+  suite.printtool: {{ .Values.params.suite.printtool | quote }}
+  {{- end }}
+  {{- if .Values.params.suite.release }}
+  suite.release: {{ .Values.params.suite.release | quote }}
+  {{- end }}
+  bvd.externalname: {{ required "Must define externalAccessHost" .Values.global.externalAccessHost }}
+  bvd.externalport: {{ required "Must define externalAccessPort" .Values.global.externalAccessPort | quote }}
+  bvd.featureToggles: {{ .Values.global.featureToggles | toJson | quote }}
+  {{- if .Values.params.startOfTheWeek }}
+  {{ include "bvd.checkStartOfTheWeek" (dict "Values" .Values) }}
+  {{- end }}
+  {{- if .Values.params.suite.helpProductId }}
+  bvd.helpProductId: {{ .Values.params.suite.helpProductId | quote }}
+  {{- end }}
+  {{- if .Values.params.dbMinPoolSize }}
+  bvd.dbMinPoolSize: {{ .Values.params.dbMinPoolSize | quote}}
+  {{- end }}
+  {{- if .Values.params.dbMaxPoolSize }}
+  bvd.dbMaxPoolSize: {{ .Values.params.dbMaxPoolSize | quote }}
+  {{- end }}
+  bvd.defaultFoundationRoles: |
+  {{- .Files.Get "data/defaultFoundationRoles.json" | nindent 4 }}
+

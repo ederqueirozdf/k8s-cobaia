@@ -1,0 +1,51 @@
+{{ $namePrefix := include "namePrefix" . }}
+{{- if and ( kindIs "bool" .Values.global.rbac.serviceAccountCreate ) (.Values.global.rbac.serviceAccountCreate) }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "itom-idm.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+imagePullSecrets:
+- name: {{ .Values.global.docker.imagePullSecret | default "registrypullsecret" }}
+{{- end }}
+
+{{- if and ( kindIs "bool" .Values.global.rbac.roleCreate ) (.Values.global.rbac.roleCreate) }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: microfocus:cdf:{{ $namePrefix }}-idm
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - serviceaccounts
+  - configmaps
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+  - deletecollection
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: microfocus:cdf:{{ $namePrefix }}-idm
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: microfocus:cdf:{{ $namePrefix }}-idm
+subjects:
+- kind: ServiceAccount
+  name: {{ template "itom-idm.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

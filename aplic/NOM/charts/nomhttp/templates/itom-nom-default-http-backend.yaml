@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: itom-nom-default-http-backend
+  labels:
+    name: itom-nom-default-http-backend
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    name: itom-nom-default-http-backend
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: itom-nom-default-http-backend
+  labels:
+    name: itom-nom-default-http-backend
+  annotations:
+    deployment.microfocus.com/default-replica-count: "1"
+    deployment.microfocus.com/runlevel: UP
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: itom-nom-default-http-backend
+  template:
+    metadata:
+      labels:
+        name: itom-nom-default-http-backend
+    spec:
+      serviceAccountName: itom-nom-http-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.global.securityContext.user }}
+        runAsGroup: {{ .Values.global.securityContext.fsGroup }}
+        fsGroup: {{ .Values.global.securityContext.fsGroup }}
+      containers:
+        - name: itom-nom-default-http-backend
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.nomWebServer.image }}:{{ .Values.nomWebServer.imageTag }}
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            timeoutSeconds: 5
+          ports:
+          - containerPort: 8080
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

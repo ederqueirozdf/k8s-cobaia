@@ -1,0 +1,33 @@
+
+Thank you for deploying Network Operations Management (NOM) 2021.11, Ultimate Edition.
+
+{{- if .Values.global.perfTroubleshooting.isSelected }}
+Performance Troubleshooting:
+    You can launch the Performance Troubleshooting console from NNMi nodes, interfaces, and incidents
+by selecting Actions menu -> Performance Troubleshooting.
+
+{{ end }}
+
+BVD Dashboards and Reports can be launched in the following ways:
+
+- From NNMi by selecting Actions menu -> BVD Dashboards and Reports.
+- From https://{{ .Values.global.externalAccessHost }}:{{ .Values.global.externalAccessPort }}/bvd.
+
+Before you access BVD Dashboards and Reports, perform the post-installation tasks documented in the following link:
+https://docs.microfocus.com/itom/Network_Operations_Management:2021.05/Install
+
+
+{{ if and (not .Values.global.database.internal) (not .Values.global.database.tlsEnabled) }}
+*************************************************************************************
+** WARNING: You are deploying with an external PostgreSQL database, but you do not **
+** have global.database.tlsEnabled=true.  It is highly recommended to use TLS for  **
+** database operations.                                                            **
+*************************************************************************************
+{{- end }}
+
+{{ if and (not .Values.global.vertica.embedded) (not .Values.global.vertica.tlsEnabled) }}
+********************************************************************************
+** WARNING: You do not have global.vertica.tlsEnabled=true.  It is highly     **
+** recommended to use TLS for Vertica database operations.                    **
+********************************************************************************
+{{- end }}

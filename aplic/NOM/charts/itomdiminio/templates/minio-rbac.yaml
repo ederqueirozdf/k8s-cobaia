@@ -1,0 +1,36 @@
+{{- if .Values.global.rbac.roleCreate }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: "itomdi:minio-role"
+rules:
+- apiGroups: [""]
+  resources:
+  - services
+  - endpoints
+  - pods
+  - serviceaccounts
+  - secrets
+  - configmaps
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources:
+  - daemonsets
+  - deployments
+  - replicasets
+  verbs: ["list", "watch", "update"]
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "itomdi:minio-rolebinding"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: "itomdi:minio-role"
+subjects:
+- kind: ServiceAccount  
+  name: {{ .Values.deployment.rbac.serviceAccount | default "itom-di-minio-sa" }}  
+  namespace: {{ .Release.Namespace }}
+{{- end }}

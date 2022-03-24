@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metadata-server-logback-cm
+data:
+  logback.xml: |-
+    {{- (tpl (.Files.Get "conf/logback.xml") . ) | nindent 8 }}

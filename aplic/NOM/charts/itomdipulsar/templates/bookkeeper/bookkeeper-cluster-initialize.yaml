@@ -1,0 +1,124 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+{{ if .Values.initialize -}}
+{{- if .Values.components.bookkeeper }}
+{{- include "pulsar.setCurrentComponentFull" (set (set . "currentComponent" (printf "%s-init" .Values.bookkeeper.component)) "componentFullSuffix" .Values.bookkeeper.component) -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ .currentComponentFull }}-init-{{ randAlphaNum 7 | lower }}"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pulsar.standardLabels" . | nindent 4 }}
+spec:
+  template:
+    metadata:
+      annotations:
+        pod.boostport.com/vault-init-container: generate-certificates
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+    spec:
+      securityContext:
+        runAsUser: {{ .Values.global.securityContext.user | int64 }}
+        runAsGroup: {{ .Values.global.securityContext.group | int64 }}
+        fsGroup: {{ .Values.global.securityContext.fsGroup | int64 }}
+    {{- with ( coalesce .Values.nodeSelector .Values.global.nodeSelector ) }}
+      nodeSelector:
+        {{ toYaml . }}
+    {{- end }}   
+    {{- if .Values.global.rbac.serviceAccountCreate }}
+      serviceAccount: "itomdipulsar-sa"
+      serviceAccountName: "itomdipulsar-sa"
+    {{- else }}
+      serviceAccount: {{ .Values.deployment.rbac.serviceAccount }}
+      serviceAccountName: {{ .Values.deployment.rbac.serviceAccount }}
+    {{- end }}
+      initContainers:
+      {{- include "helm-lib.waitForVault" . | nindent 6 }}
+      - name: generate-certificates
+      {{- if and .Values.global.vaultInit.registry .Values.global.vaultInit.orgName }}
+        image: {{ .Values.global.vaultInit.registry }}/{{ .Values.global.vaultInit.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+      {{- else}}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+      {{- end}}
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: CERT_COMMON_NAME
+            value: "{{ template "pulsar.fullname" . }}-{{ .Values.zookeeper.component }}"
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+      {{- include "pulsar.zookeeper.wait.init" . | nindent 6}}
+      containers:     
+      - name: "{{ .currentComponentFull }}-init"
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.pulsar.image }}:{{ .Values.pulsar.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+      {{- if .Values.bookkeeper.metadata.resources }}
+        resources:
+{{ toYaml .Values.bookkeeper.metadata.resources | indent 10 }}
+      {{- end }}
+        command: ["sh", "-c"]
+        args:
+          - >
+            source bin/coso-init.sh;
+            bin/apply-config-from-env.py conf/bookkeeper.conf;
+            if bin/bookkeeper shell whatisinstanceid; then
+                echo "bookkeeper cluster already initialized";
+            else
+                {{- if not (eq .Values.metadataPrefix "") }}
+                bin/bookkeeper org.apache.zookeeper.ZooKeeperMain -server {{ template "pulsar.fullname" . }}-{{ .Values.zookeeper.component }} create {{ .Values.metadataPrefix }} 'created for pulsar cluster "{{ template "pulsar.fullname" . }}"' || yes &&
+                {{- end }}
+                bin/bookkeeper shell initnewcluster;
+            fi
+        envFrom:
+        - configMapRef:
+            name: "{{ .currentComponentFull }}"
+        volumeMounts:
+        {{- include "pulsar.coso.init.volumeMounts" . | nindent 8 }}
+        - name: tmp
+          mountPath: /pulsar/tmp
+        - name: conf
+          mountPath: /pulsar/conf
+        - name: logs
+          mountPath: /pulsar/logs
+        - name: ssl
+          mountPath: /pulsar/ssl
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+        {{- include "pulsar.bastion.certs.volumeMounts" . | nindent 8 }}
+      volumes:
+      {{- include "pulsar.coso.init.volumes" . | nindent 6 }}
+      - name: tmp
+        emptyDir: {}
+      - name: conf
+        emptyDir: {}
+      - name: ssl
+        emptyDir: {}
+      - name: logs
+        emptyDir: {}
+      - name: vault-token
+        emptyDir: {}
+      {{- include "pulsar.bastion.certs.volumes" . | nindent 6 }}
+      restartPolicy: Never
+{{- end }}
+{{- end }}

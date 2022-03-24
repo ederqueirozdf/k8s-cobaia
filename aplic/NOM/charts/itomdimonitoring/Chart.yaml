@@ -1,0 +1,11 @@
+apiVersion: v2
+appVersion: 2.5.0-61
+dependencies:
+- name: helm-lib
+  version: 1.4.10
+description: Monitoring Helm chart for ITOM Data Ingestion
+maintainers:
+- email: swpdl.askstoreonce@microfocus.com
+  name: ITOM-DI
+name: itomdimonitoring
+version: 2.5.0-61

@@ -1,0 +1,139 @@
+    [
+      {
+        "operation": "ADD_OR_UPDATE",
+        "type": "role",
+        "names": {
+          "organizationName": "Provider"
+        },
+        "attributes": {
+          "name": "CLUSTER_ADMIN",
+          "displayName": "CLUSTER ADMIN",
+          "description": "CLUSTER ADMIN ROLE"
+        },
+        "associations": [
+          {
+            "name": "Administrators",
+            "type": "group"
+          },
+          {
+            "name": "SUPER_IDM_ADMIN",
+            "type": "permission"
+          },
+          {
+            "name": "MNG_ADMIN",
+            "type": "permission"
+          }
+        ]
+      },
+      {
+        "operation": "ADD_OR_UPDATE",
+        "type": "role",
+        "names": {
+          "organizationName": "Provider"
+        },
+        "attributes": {
+          "name": "DEPLOYMENT_ADMIN",
+          "displayName": "DEPLOYMENT ADMIN",
+          "description": "DEPLOYMENT ADMIN ROLE"
+        },
+        "associations": [
+          {
+            "name": "Administrators",
+            "type": "group"
+          },
+          {
+            "name": "SUPER_IDM_ADMIN",
+            "type": "permission"
+          },
+          {
+            "name": "MNG_ADMIN",
+            "type": "permission"
+          }
+        ]
+      },
+      {
+        "operation":"ADD_OR_UPDATE",
+        "type":"databaseUser",
+        "names":{
+          "organizationName":"Provider",
+          "databaseUserName":"integration_admin"
+        },
+        "attributes":{
+          "name":"integration_admin"
+        },
+        "associations":[
+          {
+            "type": "group",
+            "name": "Administrators"
+          }
+        ]
+      },
+      {
+        "operation":"ADD_OR_UPDATE",
+        "type":"databaseUser",
+        "names":{
+          "organizationName":"Provider",
+          "databaseUserName":"opsbridge_admin"
+        },
+        "attributes":{
+          "name":"opsbridge_admin"
+        },
+        "associations":[
+          {
+            "type": "group",
+            "name": "Administrators"
+          }
+        ]
+      },
+      {
+        "operation":"ADD_OR_UPDATE",
+        "type":"databaseUser",
+        "names":{
+          "organizationName":"Provider",
+          "databaseUserName":"nomadmin"
+        },
+        "attributes":{
+          "name":"nomadmin"
+        },
+        "associations":[
+          {
+            "type": "group",
+            "name": "Administrators"
+          }
+        ]
+      },
+      {
+        "operation":"ADD_OR_UPDATE",
+        "type":"databaseUser",
+        "names":{
+          "organizationName":"Provider",
+          "databaseUserName":"nom_admin"
+        },
+        "attributes":{
+          "name":"nom_admin"
+        },
+        "associations":[
+          {
+            "type": "group",
+            "name": "Administrators"
+          }
+        ]
+      },
+      {
+        "operation":"ADD_OR_UPDATE",
+        "type":"databaseUser",
+        "names":{
+          "organizationName":"Provider",
+          "databaseUserName":"system"
+        },
+        "attributes":{
+          "name":"system"
+        },
+        "associations":[
+          {
+            "type": "group",
+            "name": "Administrators"
+          }
+        ]
+      }
+    ]

@@ -1,0 +1,250 @@
+{{- if eq .Values.mode "distributed" }}
+{{ $zoneCount := .Values.zones | int }}
+{{ $nodeCount := .Values.replicas | int }}
+{{ $scheme := "http" }}
+{{- if .Values.diminio.tls.enabled }}
+{{ $scheme = "https" }}
+{{ end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "minio.fullname" . }}-svc
+  labels:
+    {{- include "minio.standardLabels" . | nindent 4 }}
+  annotations:
+    {{- include "minio.template.annotations" . | nindent 4 }}
+    {{ template "minio.service_domain" . }}
+    {{- if eq .Values.global.cluster.k8sProvider "azure" }}
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    {{- end }}
+spec:
+  {{- if eq (include  "minio.is_cloud_deployment" . ) "true" }}
+  type: {{ template "minio.service_type" . }}
+  {{ template "minio.azure_loadbalancer_ip" . }}
+  {{ template "minio.azure_loadbalancer_source_range" . }}
+  {{- else }}
+  clusterIP: None
+  {{- end }}
+  ports:
+    - name: service
+      port: {{ .Values.diminio.service.port }}
+      protocol: TCP
+    - name: metrics
+      port: 5555
+      protocol: TCP
+      targetPort: {{ .Values.diminio.service.port }}
+  selector:
+    app: {{ template "minio.name" . }}
+---
+apiVersion: {{ template "minio.statefulset.apiVersion" . }}
+kind: StatefulSet
+metadata:
+  name: {{ template "minio.fullname" . }}
+  labels:
+    {{- include "minio.standardLabels" . | nindent 4 }}
+  annotations:
+    {{- include "minio.template.annotations" . | nindent 8 }}
+spec:
+  updateStrategy:
+    type: {{ .Values.StatefulSetUpdate.updateStrategy }}
+  podManagementPolicy: "Parallel"
+  serviceName: {{ template "minio.fullname" . }}-svc
+  replicas: {{ mul $zoneCount $nodeCount }}
+  selector:
+    matchLabels:
+      app: {{ template "minio.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      name: {{ template "minio.fullname" . }}
+      labels:
+        app: {{ template "minio.name" . }}
+        release: {{ .Release.Name }}
+        {{- include "minio.standardLabels" . | nindent 8 }}
+{{- if .Values.podLabels }}
+{{ toYaml .Values.podLabels | indent 8 }}
+{{- end }}
+      annotations:
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        pod.boostport.com/vault-init-container: generate-certificates
+        checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- include "minio.template.annotations" . | nindent 8 }}
+{{- if .Values.podAnnotations }}
+{{ toYaml .Values.podAnnotations | trimSuffix "\n" | indent 8 }}
+{{- end }}
+    spec:
+      securityContext:
+        runAsUser: {{ .Values.global.securityContext.user }}
+        runAsGroup: {{ .Values.global.securityContext.group }}
+        fsGroup: {{ .Values.global.securityContext.fsGroup }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: "{{ .Values.priorityClassName }}"
+      {{- end }}
+      
+      serviceAccount: {{ .Values.deployment.rbac.serviceAccount | default "itom-di-minio-sa" }}
+      serviceAccountName: {{ .Values.deployment.rbac.serviceAccount | default "itom-di-minio-sa" }}
+      
+      initContainers:
+        {{- include "helm-lib.waitForVault" . | nindent 6 }}
+      - env:
+        - name: CERT_COMMON_NAME
+          {{- if eq (include  "minio.is_cloud_deployment" . ) "false" }}
+          value: "Realm:RID,Common_Name:{{ .Values.global.externalAccessHost }},Additional_SAN:*.{{ template "minio.fullname" . }}-svc.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }};Realm:RE,Common_Name:{{ .Values.global.externalAccessHost }},Additional_SAN:*.{{ template "minio.fullname" . }}-svc.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
+          {{- else}}
+          value: "Realm:RID,Common_Name:{{ .Values.global.externalAccessHost }},Additional_SAN:{{ .Values.global.di.cloud.externalAccessHost.minio }}/*.{{ template "minio.fullname" . }}-svc.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }};Realm:RE,Common_Name:{{ .Values.global.externalAccessHost }},Additional_SAN:{{ .Values.global.di.cloud.externalAccessHost.minio }}/*.{{ template "minio.fullname" . }}-svc.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}"
+          {{- end}}
+    {{- if and .Values.global.vaultInit.registry .Values.global.vaultInit.orgName }}
+        image: {{ .Values.global.vaultInit.registry }}/{{ .Values.global.vaultInit.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+    {{- else}}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+    {{- end}}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        name: generate-certificates
+        resources: {}
+        securityContext:
+          runAsUser: {{ .Values.global.securityContext.user }}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+          - mountPath: /var/run/secrets/boostport.com
+            name: vault-token  
+      containers:
+        - name: certificate-renew
+      {{- if and .Values.global.vaultRenew.registry .Values.global.vaultRenew.orgName }}
+          image: {{ .Values.global.vaultRenew.registry }}/{{ .Values.global.vaultRenew.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+      {{- else }}
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+      {{- end }}
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/boostport.com
+        - name: minio
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.docker.image }}:{{ .Values.global.docker.imageTag }}
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          {{- if not .Values.diminio.tls.enabled }}
+          command: [ "/bin/sh", "-ce", "./minio server {{- range $i := until $zoneCount }}{{ $factor := mul $i $nodeCount }}{{ $endIndex := add $factor $nodeCount }}{{ $beginIndex := mul $i $nodeCount }}  {{ $scheme }}://{{ template `minio.fullname` $ }}-{{ `{` }}{{ $beginIndex }}...{{ sub $endIndex 1 }}{{ `}`}}.{{ template `minio.fullname` $ }}-svc.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}{{ $.Values.mountPath }} {{- end}}" ]
+          {{- else if and .Values.diminio.tls.enabled (.Values.diminio.tls.certSecret) }}
+          command: [ "/bin/sh", "-ce", "./minio server {{- range $i := until $zoneCount }}{{ $factor := mul $i $nodeCount }}{{ $endIndex := add $factor $nodeCount }}{{ $beginIndex := mul $i $nodeCount }}  {{ $scheme }}://{{ template `minio.fullname` $ }}-{{ `{` }}{{ $beginIndex }}...{{ sub $endIndex 1 }}{{ `}`}}.{{ template `minio.fullname` $ }}-svc.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}{{ $.Values.mountPath }} {{- end}}" ]
+          {{- else if and .Values.diminio.tls.enabled (not .Values.diminio.tls.certSecret) }}
+          command: [ "/bin/sh", "-ce", "mkdir -p {{ .Values.certPath }}certs/CAs && ln -s /var/run/secrets/boostport.com/issue_ca.crt {{ .Values.certPath }}certs/CAs/public.crt && ln -s /var/run/secrets/boostport.com/RE/server1.crt {{ .Values.certPath }}certs/public.crt && ln -s /var/run/secrets/boostport.com/RE/server1.key {{ .Values.certPath }}certs/private.key && ./minio -S {{ .Values.certPath }}certs  server {{- range $i := until $zoneCount }}{{ $factor := mul $i $nodeCount }}{{ $endIndex := add $factor $nodeCount }}{{ $beginIndex := mul $i $nodeCount }}  {{ $scheme }}://{{ template `minio.fullname` $ }}-{{ `{` }}{{ $beginIndex }}...{{ sub $endIndex 1 }}{{ `}`}}.{{ template `minio.fullname` $ }}-svc.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}{{ $.Values.mountPath }} {{- end}}" ]
+          {{- end }}
+          {{- if .Values.extraArgs }}
+          args:
+{{ toYaml .Values.extraArgs | indent 12 }}
+          {{- end  }}
+          volumeMounts:
+            {{- if .Values.diminio.persistence.enabled }}
+            - name: export
+              mountPath: {{ .Values.mountPath }}
+              {{- if and .Values.diminio.persistence.enabled .Values.diminio.persistence.subPath }}
+              subPath: "{{ .Values.diminio.persistence.subPath }}"
+              {{- end }}
+            {{ end }}
+            - name: minio-config-dir
+              mountPath: {{ .Values.configPath }}
+            - name: vault-token
+              mountPath: /var/run/secrets/boostport.com
+            {{- if and .Values.diminio.tls.enabled .Values.diminio.tls.certSecret }}
+            - name: cert-secret-volume
+              mountPath: {{ .Values.certPath }}certs
+            {{ end }}
+          ports:
+            - name: service
+              containerPort: 9000
+          env:
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "minio.fullname" . }}-secret
+                  key: accesskey
+
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "minio.fullname" . }}-secret
+                  key: secretkey
+
+            {{- range $key, $val := .Values.diminio.environment }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end}}
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: service
+              {{- if .Values.diminio.tls.enabled }}
+              scheme: HTTPS
+              {{ else }}
+              scheme: HTTP
+              {{- end }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.livenessProbe.successThreshold }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- with ( coalesce .Values.nodeSelector .Values.global.nodeSelector ) }}
+      nodeSelector:
+        {{ toYaml . }}
+    {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+      {{ toYaml . | indent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 0
+      tolerations:
+      - effect: NoExecute
+        key: node.kubernetes.io/not-ready
+        operator: Exists
+        tolerationSeconds: 30
+      - effect: NoExecute
+        key: node.alpha.kubernetes.io/notReady
+        operator: Exists
+        tolerationSeconds: 30
+      - effect: NoExecute
+        key: node.alpha.kubernetes.io/unreachable
+        operator: Exists
+        tolerationSeconds: 30
+      volumes:
+        - name: vault-token
+          emptyDir: {}
+        - name: minio-user
+          secret:
+            secretName: {{ if .Values.existingSecret }}{{ .Values.existingSecret }}{{ else }}{{ template "minio.fullname" . }}{{ end }}
+        - name: minio-config-dir
+          emptyDir: {}
+        {{- if and .Values.diminio.tls.enabled .Values.diminio.tls.certSecret}}
+        - name: cert-secret-volume
+          secret:
+            secretName: {{ .Values.diminio.tls.certSecret }}
+            items:
+            - key: {{ .Values.diminio.tls.publicCrt }}
+              path: public.crt
+            - key: {{ .Values.diminio.tls.privateKey }}
+              path: private.key
+            - key: {{ .Values.diminio.tls.publicCrt }}
+              path: CAs/public.crt
+        {{ end }}
+{{- if .Values.diminio.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: export
+        labels:
+          app: {{ template "minio.name" . }}
+      spec:
+        accessModes: [ {{ .Values.diminio.persistence.accessMode | quote }} ]
+        {{- if .Values.diminio.persistence.storageClassName }}
+        storageClassName: {{ .Values.diminio.persistence.storageClassName }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.diminio.persistence.size }}
+{{ end }}
+{{- end }}

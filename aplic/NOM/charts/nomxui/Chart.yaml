@@ -1,0 +1,8 @@
+apiVersion: v2
+appVersion: 3.4.77
+dependencies:
+- name: helm-lib
+  version: 1.5.28
+description: Micro Focus NOM UI Service
+name: nomxui
+version: 3.4.77

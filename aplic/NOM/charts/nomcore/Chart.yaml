@@ -1,0 +1,8 @@
+apiVersion: v2
+appVersion: 1.0.68
+dependencies:
+- name: helm-lib
+  version: 1.5.20
+description: Micro Focus NOM Core Chart
+name: nomcore
+version: 1.0.68

@@ -1,0 +1,2027 @@
+
+# These 3 Helm keys are different for NOM vs. OpsB
+
+
+# NOM Ultimate does not support containerized mode
+# NNMi classic is REQUIRED for perf-bvd chart, but optional for other charts
+
+# this chart does not support SHARED_OPTIC
+
+# this is for enabling selection of AWS S3 parameters if "nom.traffic==true"
+
+# if this suite/chart supports multi-deployment feature
+
+# NOM allows the possibility for embedded Vertica, for POC only (DCA does not allow this, at all)
+
+# This chart supports ability for COSO Client CA certificates
+
+# These next values control which message key to use for TLS certificates,
+# and COSO client CA certificates.  This is necessary since each NOM chart,
+# and other suites, has unique strings to print out to the customer.
+
+# This chart is not supported on Google GCP
+
+
+####################################
+# Groups (must come first)
+####################################
+groups:
+
+# General
+- name: external-access
+  label: common.group.externalAccess.label
+  description: common.group.externalAccess.desc
+  category: GENERAL
+
+- name: docker-settings
+  label: common.group.docker.label
+  category: GENERAL
+
+- name: general-settings
+  label: common.group.general.label
+  category: GENERAL
+
+- name: byok
+  label: common.group.byok.label
+  category: GENERAL
+
+# Services
+- name: nom
+  label: nom.groups.nomMixed.label
+  category: SERVICES
+
+
+- name: cloud-coso
+  label: coso.group.cloud.label
+  description: coso.group.cloud.desc
+  category: SERVICES
+- name: coso
+  label: coso.group.label
+  category: SERVICES
+
+
+- name: coso-aws-s3
+  label: coso.group.aws-s3.label
+  category: SERVICES
+
+
+# Security
+- name: system-security
+  label: common.group.security.label
+  category: SECURITY
+
+- name: trust
+  label: common.group.tlsCerts.label
+  type:
+    key: CA_CERTIFICATE
+    trustedCAListParam: trusted-ca-list
+  category: SECURITY
+
+- name: client-certs
+  label: common.group.cosoClientCerts.label
+  type:
+    key: CA_CERTIFICATE
+    trustedCAListParam: api-client-ca-list
+  category: SECURITY
+
+- name: uid-gid
+  label: common.group.uid-gid.label
+  category: SECURITY
+
+# Databases
+# This is the overall database parameters, i.e. host:port, TLS, and dbType
+# It is intentionally NOT a group of type "DATABASE", because it is just
+# querying those few parameters for other groups which ARE "DATABASE" groups.
+#
+- name: database
+  label: common.group.db.label
+  category: DATABASES
+
+
+
+
+
+# This is the DATABASE group for the IDM database user/pass/dbName
+- name: database-idm
+  label: common.group.db.idm.label
+  category: DATABASES
+  type:
+    key: DATABASE
+    providerTypeParam: database.persistence-db-type
+    hostParam: database.persistence-db-host
+    portParam: database.persistence-db-port
+    useTlsParam: database.pg-ssl-enabled
+    databaseNameParam: persistence-db-name
+    userParam: persistence-db-user
+    passParam: persistence-db-pass
+
+
+# This is the DATABASE group for the AutoPass database user/pass/dbName
+- name: database-apls
+  label: common.group.db.apls.label
+  category: DATABASES
+  type:
+    key: DATABASE
+    providerTypeParam: database.persistence-db-type
+    hostParam: database.persistence-db-host
+    portParam: database.persistence-db-port
+    useTlsParam: database.pg-ssl-enabled
+    databaseNameParam: persistence-db-name-apls
+    userParam: persistence-db-user-apls
+    passParam: persistence-db-pass-apls
+
+
+# This is the DATABASE group for the BVD database user/pass/dbName
+- name: database-bvd
+  label: common.group.db.bvd.label
+  category: DATABASES
+  type:
+    key: DATABASE
+    providerTypeParam: database.persistence-db-type
+    hostParam: database.persistence-db-host
+    portParam: database.persistence-db-port
+    useTlsParam: database.pg-ssl-enabled
+    databaseNameParam: persistence-db-name-bvd
+    userParam: persistence-db-user-bvd
+    passParam: persistence-db-pass-bvd
+
+# Full mode NNMi/NA databases (n/a for Ultimate)
+#INCLUDE: nom/groups-nomdbs.yaml
+- name: database-btcd
+  label: nom.groups.db.btcd.label
+  category: DATABASES
+  type:
+    key: DATABASE
+    providerTypeParam: database.persistence-db-type
+    hostParam: database.persistence-db-host
+    portParam: database.persistence-db-port
+    useTlsParam: database.pg-ssl-enabled
+    databaseNameParam: persistence-db-name-btcd
+    userParam: persistence-db-user-btcd
+    passParam: persistence-db-pass-btcd
+
+# Overall Vertica settings and Read/Write user
+- name: vertica
+  label: vertica.group.label
+  description: vertica.group.desc
+  category: DATABASES
+  type:
+    key: DATABASE
+    providerTypeParam: vertica-db-type
+    hostParam: vertica-host
+    portParam: vertica-port
+    useTlsParam: vertica-tls-enabled
+    databaseNameParam: vertica-db-name
+    userParam: vertica-rw-user
+    passParam: vertica-rw-user-password
+
+# Vertica settings for Read-Only user
+- name: vertica-ro
+  label: vertica.group.rouser.label
+  category: DATABASES
+  type:
+    key: DATABASE
+    providerTypeParam: vertica.vertica-db-type
+    hostParam: vertica.vertica-host
+    portParam: vertica.vertica-port
+    useTlsParam: vertica.vertica-tls-enabled
+    databaseNameParam: vertica.vertica-db-name
+    userParam: vertica-ro-user
+    passParam: vertica-ro-user-password
+- name: cloud-vertica
+  label: vertica.group.cloud.label
+  description: vertica.group.cloud.desc
+  category: DATABASES
+
+# Integrations
+- name: troubleshooting
+  label: nom.groups.perft.label
+  category: INTEGRATIONS
+  groupToggle:
+    defaultValue: true
+    helmKey: userInput.perfSpiToggle
+
+# Advanced
+- name: monitoring-params
+  label: common.group.monitoring.label
+  category: ADVANCED
+
+- name: byok-params
+  label: common.group.byokParams.label
+  category: ADVANCED
+- name: storage
+  label: common.group.storage.label
+  category: ADVANCED
+- name: multi-deploy-coso
+  label: coso.group.multiDeploy.label
+  description: coso.group.multiDeploy.desc
+  category: ADVANCED
+  groupToggle:
+    helmKey: userInput.multiDeploy.coso
+    defaultValue: false
+
+#INCLUDE: nom/group-multideploy.yaml
+
+####################################
+# Parameters section
+####################################
+parameters:
+
+######### General #########
+
+- name: external-access-host
+  label: common.externalHost.label
+  toolTip: common.externalHost.tip
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 64
+  group: external-access
+  helmValue:
+    key: global.externalAccessHost
+
+- name: load-balancer
+  label: common.loadBalancer.label
+  toolTip: common.loadBalancer.tip
+  type:
+    key: BOOLEAN
+    isRequired: true
+    defaultValue: false
+  group: external-access
+  helmValue:
+    key: userInput.loadBalancer
+
+- name: external-access-port
+  label: common.externalPort.label
+  description: common.externalPort.desc
+  toolTip: common.externalPort.tip
+  type:
+    key: AVAIL_PORT
+    isRequired: true
+    min: 1
+    max: 65535
+    defaultValue:   9443
+  group: external-access
+  helmValue:
+    key: global.externalAccessPort
+  dependsOn:
+    andConditions:
+    - parameterName: load-balancer
+      valueEquals: false
+
+- name: external-access-port-lb
+  label: common.externalPort.lb.label
+  toolTip: common.externalPort.lb.tip
+  type:
+    key: INTEGER
+    isRequired: true
+    min: 1
+    max: 65535
+    defaultValue: 
+  group: external-access
+  helmValue:
+    key: global.externalAccessPort
+  dependsOn:
+    andConditions:
+    - parameterName: load-balancer
+      valueEquals: true
+
+- name: nginx-port
+  label: common.nginxPort.label
+  description: common.nginxPort.desc
+  toolTip: common.nginxPort.tip
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 1
+    max: 65535
+    defaultValue:   9443
+  group: external-access
+  helmValue:
+    key: global.nginx.httpsPort
+  dependsOn:
+    andConditions:
+    - parameterName: load-balancer
+      valueEquals: true
+
+- name: docker-registry
+  label: common.docker.reg.label
+  description: common.docker.reg.desc
+  type:
+    key: STRING
+    isRequired: false
+    defaultValue: localhost:5000
+  group: docker-settings
+  helmValue:
+    key: global.docker.registry
+
+- name: docker-orgname
+  label: common.docker.org.label
+  description: common.docker.org.desc
+  type:
+    key: STRING
+    isRequired: false
+    defaultValue: hpeswitom
+  group: docker-settings
+  helmValue:
+    key: global.docker.orgName
+
+
+# Note the name "apphub-deploySize" is required for AppHub "deployment size" feature to work.
+- name: apphub-deploySize
+  label: nom.deploySize.label
+  toolTip: nom.deploySize.tip
+  type:
+    key: OPTION
+    isRequired: true
+    isMultiSelect: false
+    values:
+    - name: small-mixed
+      label: nom.deploySize.mix.small.label
+      value: small-mixed
+    - name: medium-mixed
+      label: nom.deploySize.mix.med.label
+      value: medium-mixed
+    - name: large-mixed
+      label: nom.deploySize.mix.large.label
+      value: large-mixed
+    - name: xlarge-mixed
+      label: nom.deploySize.mix.xlarge.label
+      value: xlarge-mixed
+    - name: global-medium-mixed
+      label: nom.deploySize.mix.gnm.med.label
+      value: global-medium-mixed
+    - name: global-large-mixed
+      label: nom.deploySize.mix.gnm.large.label
+      value: global-large-mixed
+    - name: demo
+      label: nom.deploySize.poc.label
+      value: demo
+# not working for some reason due to defect in AppHub?
+#    defaultValue:
+#    - small
+  group: general-settings
+  helmValue:
+    key: userInput.deploySize
+
+- name: k8s-provider
+  label: common.byok.provider.label
+  type:
+    key: OPTION
+    isRequired: true
+    isMultiSelect: false
+    isImmutable: true
+    values:
+    - name: cdf
+      label: common.byok.cdf.label
+      value: cdf
+    - name: aws
+      label: common.byok.aws.label
+      value: aws
+    - name: azure
+      label: common.byok.azure.label
+      value: azure
+    - name: openshift
+      label: common.byok.openshift.label
+      value: openshift
+  group: byok
+  helmValue:
+    key: global.cluster.k8sProvider
+
+######### Services #########
+
+
+
+# Database Settings for the server
+- name: nom-classic-integrations
+  group: nom
+  label: nom.classic.label
+  type:
+    key: OPTION
+    isRequired: true
+    isMultiselect: false
+    values:
+    - name: nnmi-and-na
+      label: nom.nnmiPlusNa.enable.label
+      value: nnmi-and-na
+    - name: nnmi-only
+      label: nom.nnmi.enable.label
+      value: nnmi-only
+    - name: na-only
+      label: nom.na.enable.label
+      value: na-only
+    defaultValue:
+    - nnmi-and-na
+  helmValue:
+    key: userInput.nom.classicProds
+- name: external-nnmi-host
+  label: nom.nnmi.host.label
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 64
+  group: nom
+  helmValue:
+    key: global.nnmi.host
+  dependsOn:
+    andConditions:
+    - parameterName: nom-classic-integrations
+      valueNotEquals: na-only
+
+
+- name: external-nnmi-port
+  label: nom.nnmi.port.label
+  type:
+    key: PORT
+    isRequired: true
+    min: 1
+    max: 65535
+    defaultValue: 443
+    hostParam: external-nnmi-host
+  group: nom
+  helmValue:
+    key: global.nnmi.port
+  dependsOn:
+    andConditions:
+    - parameterName: nom-classic-integrations
+      valueNotEquals: na-only
+
+
+- name: app-failover
+  label: nom.nnmi.appfail.label
+  toolTip: nom.nnmi.appfail.tip
+  type:
+    key: BOOLEAN
+    isRequired: true
+    defaultValue: false
+  group: nom
+  helmValue:
+    key: appFailover # not used by Helm chart
+  dependsOn:
+    andConditions:
+    - parameterName: nom-classic-integrations
+      valueNotEquals: na-only
+
+
+- name: external-nnmi-failoverhost
+  label: nom.nnmi.appfail.host.label
+  toolTip: nom.nnmi.appfail.host.tip
+  type:
+    key: STRING
+    isRequired: false
+    minLength: 1
+    maxLength: 64
+  group: nom
+  helmValue:
+    key: global.nnmi.failoverhost
+  dependsOn:
+    andConditions:
+    - parameterName: app-failover
+      valueEquals: true
+    - parameterName: nom-classic-integrations
+      valueNotEquals: na-only
+
+
+- name: external-nnmi-password
+  label: nom.nnmi.password.label
+  description: nom.nnmi.password.desc
+  type:
+    key: SECRET
+    isRequired: true
+    complexity: default
+    shouldValidate: true
+    shouldConfirm: true
+  group: nom
+  helmValue:
+    key: secrets.NNM_SYS_PASSWD_KEY
+  dependsOn:
+    andConditions:
+    - parameterName: nom-classic-integrations
+      valueNotEquals: na-only
+- name: external-na-host
+  label: nom.na.host.label
+  toolTip: nom.na.host.tip
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 64
+  group: nom
+  helmValue:
+    key: global.na.host
+  dependsOn:
+    andConditions:
+    - parameterName: nom-classic-integrations
+      valueNotEquals: nnmi-only
+
+- name: external-na-port
+  label: nom.na.port.label
+  type:
+    key: PORT
+    isRequired: true
+    min: 1
+    max: 65535
+    defaultValue: 443
+    hostParam: external-na-host
+  group: nom
+  helmValue:
+    key: global.na.port
+  dependsOn:
+    andConditions:
+    - parameterName: nom-classic-integrations
+      valueNotEquals: nnmi-only
+
+- name: qa
+  label: nom.qa.label
+  type:
+    key: BOOLEAN
+    isRequired: false
+    defaultValue: true
+  group: coso
+  helmValue:
+    key: global.qa.isSelected
+- name: nom-traffic
+  label: nom.traffic.label
+  type:
+    key: BOOLEAN
+    isRequired: false
+    defaultValue: true
+  group: coso
+  helmValue:
+    key: global.traffic.isSelected
+
+# This "byok-minio" creates reference to MinIO storageClass for Azure, which is
+# in "General" tab, not "Services".  But because there is a forward reference
+# we need the "INCLUDE" after traffic-flag.
+# Even though this goes into the "General" category, this definition needs to appear
+# after "coso.nom-traffic" field (due to dependency below) which is in the "Services"
+# category.  In any case AppHub UI will render this field in "General", but there is
+# this backwards reference.
+#
+- name: minio-storageClass
+  group: storage
+  label: common.byok.storageClass.minio.label
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 100
+    defaultValue: managed-premium
+  helmValue:
+    key: itomdiminio.diminio.persistence.storageClassName
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: azure
+    - parameterName: coso.nom-traffic
+      valueEquals: true
+
+- name: openshift-minio-storageClass
+  group: storage
+  label: common.byok.storageClass.minio.label
+  type:
+    key: STRING
+    isRequired: false
+    minLength: 1
+    maxLength: 100
+    defaultValue: ocs-storagecluster-ceph-rbd
+  helmValue:
+    key: itomdiminio.diminio.persistence.storageClassName
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: openshift
+    - parameterName: coso.nom-traffic
+      valueEquals: true
+
+- name: minio-pvcSize
+  group: storage
+  label: common.byok.pvcSize.minio.label
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 100
+    defaultValue: 10Gi
+  helmValue:
+    key: itomdiminio.diminio.persistence.size
+  dependsOn:
+    andConditions:
+    - parameterName: coso.nom-traffic
+      valueEquals: true
+    orConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: azure
+    - parameterName: byok.k8s-provider
+      valueEquals: openshift
+
+
+- name: ipt
+  label: nom.ipt.label
+  type:
+    key: BOOLEAN
+    isRequired: false
+    defaultValue: false
+  group: coso
+  helmValue:
+    key: global.ipt.isSelected
+- name: mpls
+  label: nom.mpls.label
+  type:
+    key: BOOLEAN
+    isRequired: false
+    defaultValue: false
+  group: coso
+  helmValue:
+    key: global.mpls.isSelected
+- name: multicast
+  label: nom.mcast.label
+  type:
+    key: BOOLEAN
+    isRequired: false
+    defaultValue: false
+  group: coso
+  helmValue:
+    key: global.multicast.isSelected
+
+
+- name: cloud-pulsar-http-port
+  group: cloud-coso
+  label: multiDeploy.port.pulsar.http.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 30000
+    max: 32767
+    defaultValue: 30011
+  helmValue:
+    key: itomdipulsar.proxy.nodePorts.http
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: openshift
+
+- name: cloud-pulsar-https-port
+  group: cloud-coso
+  label: multiDeploy.port.pulsar.https.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 30000
+    max: 32767
+    defaultValue: 31001
+  helmValue:
+    key: global.di.proxy.nodePorts.https
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: openshift
+
+- name: cloud-pulsar-port
+  group: cloud-coso
+  label: multiDeploy.port.pulsar.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 30000
+    max: 32767
+    defaultValue: 30050
+  helmValue:
+    key: itomdipulsar.proxy.nodePorts.pulsar
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: openshift
+
+- name: cloud-pulsarssl-port
+  group: cloud-coso
+  label: multiDeploy.port.pulsarssl.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 30000
+    max: 32767
+    defaultValue: 31051
+  helmValue:
+    key: global.di.proxy.nodePorts.pulsarssl
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: openshift
+
+- name: cloud-coso-diadmin-port
+  group: cloud-coso
+  label: multiDeploy.port.diadmin.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 30000
+    max: 32767
+    defaultValue: 30004
+  helmValue:
+    key: itomdiadmin.diadmin.config.adminNodePort
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: openshift
+
+- name: cloud-coso-dataaccess-port
+  group: cloud-coso
+  label: multiDeploy.port.dataaccess.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 30000
+    max: 32767
+    defaultValue: 30003
+  helmValue:
+    key: itomdidataaccess.didataaccess.config.accessNodePort
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: openshift
+
+- name: cloud-coso-minio-port
+  group: cloud-coso
+  label: multiDeploy.port.minio.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 30000
+    max: 32767
+    defaultValue: 32006
+  helmValue:
+    key: itomdiadmin.diadmin.config.minio.nodePort
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: openshift
+    - parameterName: coso.nom-traffic
+      valueEquals: true
+- name: coso-resource-pool1
+  group: coso
+  label: nom.coso.params.pool1.label
+  description: nom.coso.params.pool1.desc
+  type:
+      key: STRING
+      isRequired: false
+      minLength: 1
+      maxLength: 100
+  helmValue:
+      key: itomdimonitoring.monitoring.verticapromexporter.config.monitoringResourcePool
+
+- name: coso-resource-pool2
+  group: coso
+  label: nom.coso.params.pool2.label
+  description: nom.coso.params.pool2.desc
+  type:
+      key: STRING
+      isRequired: false
+      minLength: 1
+      maxLength: 100
+  helmValue:
+      key: itomdipostload.dipostload.config.postload.postResourcePool
+
+# The COSO "bulk update" feature (aka "MinIO") on Amazon AWS is replaced
+# by AWS S3.  So if bulk update is deployed on AWS, then S3 parameters are required
+- name: aws-s3-region
+  label: coso.aws.s3.region.label
+  type:
+    key: STRING
+    isRequired: true
+  group: coso-aws-s3
+  helmValue:
+    key: diadmin.config.s3.region
+# I am sticking this "if(NOM)" because these fields are optional for NOM,
+# only if Traffic feature is selected.
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: aws
+    - parameterName: coso.nom-traffic
+      valueEquals: true
+
+- name: aws-s3-accessKey
+  label: coso.aws.s3.accessKey.label
+  type:
+    key: SECRET
+    isRequired: true
+    complexity: none
+    shouldValidate: true
+    shouldConfirm: true
+  group: coso-aws-s3
+  helmValue:
+    key: secrets.ITOMDI_S3_ADMIN_ACCESS_KEY
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: aws
+    - parameterName: coso.nom-traffic
+      valueEquals: true
+
+- name: aws-s3-secretKey
+  label: coso.aws.s3.secretKey.label
+  type:
+    key: SECRET
+    isRequired: true
+    complexity: none
+    shouldValidate: true
+    shouldConfirm: true
+  group: coso-aws-s3
+  helmValue:
+    key: secrets.ITOMDI_S3_ADMIN_SECRET_KEY
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: aws
+    - parameterName: coso.nom-traffic
+      valueEquals: true
+######### Security #########
+
+- name: nom-admin-password
+  label: nom.nomadmin.password.label
+  toolTip: nom.nomadmin.password.tip
+  type:
+    key: SECRET
+    isRequired: true
+    complexity: default
+    shouldValidate: true
+    shouldConfirm: true
+  group: system-security
+  helmValue:
+    key: secrets.idm_nom_admin_password
+  dependsOn:
+    andConditions:
+    - parameterName: external-access.external-access-port
+      valueNotEquals: -1
+
+- name: trusted-ca-list
+  # If suite-specific message key is defined, use it, otherwise use the default message key
+  label:   common.security.tlsCerts.nom.label
+  toolTip: common.security.tlsCerts.tip
+  type:
+    isRequired: false
+    key: MULTI_FILE
+    listMax: 10
+    maxMessage: common.security.tlsCerts.max
+  group: trust
+  helmValue:
+    key: caCertificates
+
+- name: api-client-ca-list
+  label:   common.security.clientCerts.nom.label
+  toolTip: common.security.clientCerts.tip
+  type:
+    isRequired: false
+    key: MULTI_FILE
+    listMax: 10
+    maxMessage: common.security.clientCerts.max
+  group: client-certs
+  helmValue:
+    key: authorizedClientCAs
+
+- name: security-context-user
+  label: common.security.uid.label
+  description: common.security.uid.desc
+  type:
+    key: INTEGER
+    isRequired: false
+    min: 1
+    max: 2000000000
+    defaultValue: 1999
+    isImmutable: true
+  group: uid-gid
+  helmValue:
+    key: global.securityContext.user
+
+- name: security-context-group
+  label: common.security.gid.label
+  description: common.security.gid.desc
+  type:
+    key: INTEGER
+    isRequired: false
+    min: 1
+    max: 2000000000
+    defaultValue: 1999
+    isImmutable: true
+  group: uid-gid
+  helmValue:
+    key: global.securityContext.fsGroup
+
+
+######### Database  #########
+
+# Database Settings for the server
+- name: persistence-db-type
+  label: common.db.dbtype.label
+  toolTip: common.db.dbtype.tip
+  type:
+    key: OPTION
+    isRequired: true
+    isMultiselect: false
+    isImmutable: true
+    values:
+    - name: postgresql
+      label: common.db.dbtype.pg.label
+      value: postgresql
+    - name: embedded
+      label: common.db.dbtype.embedded.label
+      value: embedded
+    defaultValue:
+    - postgresql
+
+  group: database
+  helmValue:
+    # NOTE: This Helm value is not used, because "global.database.type" is hard-coded in the
+    # NOM chart to always be postgres.  But we must have SOME Helm key here?
+    key: userInput.database.type
+
+# The buildAppHubUI.sh script does not handle NESTED "IF" statements.
+# But we can work around that with back-to-back IF statements.
+
+
+
+
+
+- name: persistence-db-host
+  label: common.db.dbHost.label
+  toolTip: common.db.dbHost.tip
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 100
+  group: database
+  helmValue:
+    key: global.database.host
+  dependsOn:
+    andConditions:
+    - parameterName: persistence-db-type
+      valueNotEquals: embedded
+
+- name: persistence-db-port
+  label: common.db.dbPort.label
+  toolTip: common.db.dbPort.tip
+  type:
+    key: INTEGER
+    isRequired: true
+    min: 0
+    max: 65535
+  group: database
+  helmValue:
+    key: global.database.port
+  dependsOn:
+    andConditions:
+    - parameterName: persistence-db-type
+      valueNotEquals: embedded
+
+- name: pg-ssl-enabled
+  label: common.db.tls.label
+  description: common.tls.disabled.warning
+  type:
+    key: BOOLEAN
+    isRequired: true
+    defaultValue: true
+  group: database
+  helmValue:
+    key: global.database.tlsEnabled
+  dependsOn:
+    andConditions:
+    - parameterName: persistence-db-type
+      valueNotEquals: embedded
+
+
+#
+# NOM does not support createDB==true, but in case OpsB/DCA do, then this fragment
+# should be enabled.
+#
+
+
+
+# Database Settings for IDM DB instance
+- name: persistence-db-name
+  label: common.db.idm.dbName.label
+  toolTip: common.db.idm.dbName.tip
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 100
+  group: database-idm
+  helmValue:
+    key: idm.deployment.database.dbName
+  dependsOn:
+    andConditions:
+    - parameterName: database.persistence-db-type
+      valueNotEquals: embedded
+
+
+- name: persistence-db-user
+  label: common.db.idm.dbUser.label
+  toolTip: common.db.idm.dbUser.tip
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 100
+  group: database-idm
+  helmValue:
+    key: idm.deployment.database.user
+  dependsOn:
+    andConditions:
+    - parameterName: database.persistence-db-type
+      valueNotEquals: embedded
+
+
+- name: persistence-db-pass
+  label: common.db.idm.dbPass.label
+  toolTip: common.db.idm.dbPass.tip
+  type:
+    key: SECRET
+    complexity: none
+    shouldValidate: false
+    shouldConfirm: false
+  group: database-idm
+  helmValue:
+    key:   secrets.IDM_DB_PASSWD_KEY
+  dependsOn:
+    andConditions:
+    - parameterName: database.persistence-db-type
+      valueNotEquals: embedded
+
+# Database Settings for AutoPass DB instance
+- name: persistence-db-name-apls
+  label: common.db.apls.dbName.label
+  toolTip: common.db.apls.dbName.tip
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 100
+  group: database-apls
+  helmValue:
+    key: autopass.deployment.database.dbName
+  dependsOn:
+    andConditions:
+    - parameterName: database.persistence-db-type
+      valueEquals: postgresql
+
+
+- name: persistence-db-user-apls
+  label: common.db.apls.dbUser.label
+  toolTip: common.db.apls.dbUser.tip
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 100
+  group: database-apls
+  helmValue:
+    key: autopass.deployment.database.user
+  dependsOn:
+    andConditions:
+    - parameterName: database.persistence-db-type
+      valueNotEquals: embedded
+
+
+- name: persistence-db-pass-apls
+  label: common.db.apls.dbPass.label
+  toolTip: common.db.apls.dbPass.tip
+  type:
+    key: SECRET
+    complexity: none
+    shouldValidate: false
+    shouldConfirm: false
+  group: database-apls
+  helmValue:
+    key:   secrets.APLS_DB_PASSWD_KEY
+  dependsOn:
+    andConditions:
+    - parameterName: database.persistence-db-type
+      valueNotEquals: embedded
+
+# Database Settings for BVD DB instance
+- name: persistence-db-name-bvd
+  label: common.db.bvd.dbName.label
+  toolTip: common.db.bvd.dbName.tip
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 100
+  group: database-bvd
+  helmValue:
+    key: bvd.deployment.database.dbName
+  dependsOn:
+    andConditions:
+    - parameterName: database.persistence-db-type
+      valueEquals: postgresql
+
+- name: persistence-db-user-bvd
+  label: common.db.bvd.dbUser.label
+  toolTip: common.db.bvd.dbUser.tip
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 100
+  group: database-bvd
+  helmValue:
+    key: bvd.deployment.database.user
+  dependsOn:
+    andConditions:
+    - parameterName: database.persistence-db-type
+      valueNotEquals: embedded
+
+- name: persistence-db-pass-bvd
+  label: common.db.bvd.dbPass.label
+  toolTip: common.db.bvd.dbPass.tip
+  type:
+    key: SECRET
+    complexity: none
+    shouldValidate: false
+    shouldConfirm: false
+  group: database-bvd
+  helmValue:
+    key:   secrets.BVD_DB_PASSWD_KEY
+  dependsOn:
+    andConditions:
+    - parameterName: database.persistence-db-type
+      valueNotEquals: embedded
+
+
+
+- name: persistence-db-name-btcd
+  label: nom.db.btcd.dbName.label
+  toolTip: nom.db.btcd.dbName.tip
+  type:
+      key: STRING
+      isRequired: true
+      minLength: 1
+      maxLength: 100
+  group: database-btcd
+  helmValue:
+      key: nommetricstransform.deployment.database.dbName
+  dependsOn:
+    andConditions:
+    - parameterName: database.persistence-db-type
+      valueEquals: postgresql
+
+- name: persistence-db-user-btcd
+  label: nom.db.btcd.dbUser.label
+  toolTip: nom.db.btcd.dbUser.tip
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 100
+  group: database-btcd
+  helmValue:
+    key: nommetricstransform.deployment.database.user
+  dependsOn:
+    andConditions:
+    - parameterName: database.persistence-db-type
+      valueNotEquals: embedded
+
+- name: persistence-db-pass-btcd
+  label: nom.db.btcd.dbPass.label
+  toolTip: nom.db.btcd.dbPass.tip
+  type:
+    key: SECRET
+    complexity: none
+    shouldValidate: false
+    shouldConfirm: false
+  group: database-btcd
+  helmValue:
+    key: secrets.BTCD_DB_PASSWD_KEY
+  dependsOn:
+    andConditions:
+    - parameterName: database.persistence-db-type
+      valueNotEquals: embedded
+
+- name: vertica-db-type
+  label: vertica.dbType.label
+  type:
+    key: OPTION
+    isRequired: true
+    isMultiselect: false
+    values:
+    - name: vertica
+      label: vertica.dbType.external.label
+      value: vertica
+    - name: embedded
+      label: vertica.dbType.embedded.label
+      value: embedded
+    defaultValue:
+    - vertica
+  group: vertica
+  helmValue:
+    key: userInput.verticaType
+
+
+- name: vertica-host
+  label: vertica.dbHost.label
+  description: vertica.dbHost.desc
+  toolTip: vertica.dbHost.tip
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 256
+  group: vertica
+  helmValue:
+    key: global.vertica.host
+  dependsOn:
+    andConditions:
+    - parameterName: vertica-db-type
+      valueEquals: vertica
+
+- name: vertica-port
+  label: vertica.dbPort.label
+  type:
+    key: INTEGER
+    isRequired: false
+    min: 0
+    max: 65535
+    defaultValue: 5433
+  group: vertica
+  helmValue:
+    key: global.vertica.port
+  dependsOn:
+    andConditions:
+    - parameterName: vertica-db-type
+      valueEquals: vertica
+
+- name: vertica-tls-enabled
+  label: vertica.dbTls.label
+  description: common.tls.disabled.warning
+  type:
+    key: BOOLEAN
+    isRequired: true
+    defaultValue: true
+  group: vertica
+  helmValue:
+    key: global.vertica.tlsEnabled
+  dependsOn:
+    andConditions:
+    - parameterName: vertica-db-type
+      valueEquals: vertica
+
+- name: vertica-db-name
+  label: vertica.dbName.label
+  type:
+    key: STRING
+    isRequired: true
+    defaultValue: verticadb
+    minLength: 1
+    maxLength: 128
+  group: vertica
+  helmValue:
+    key: global.vertica.db
+  dependsOn:
+    andConditions:
+    - parameterName: vertica-db-type
+      valueEquals: vertica
+
+- name: vertica-rw-user
+  label: vertica.dbRwUser.label
+  description: vertica.dbRwUser.desc
+  type:
+    key: STRING
+    isRequired: true
+    defaultValue: vertica_rwuser
+    minLength: 1
+    maxLength: 128
+  group: vertica
+  helmValue:
+    key: global.vertica.rwuser
+  dependsOn:
+    andConditions:
+    - parameterName: vertica-db-type
+      valueEquals: vertica
+
+- name: vertica-rw-user-password
+  label: vertica.dbRwPass.label
+  type:
+    key: SECRET
+    isRequired: true
+    complexity: none
+    shouldValidate: false
+    shouldConfirm: false
+  group: vertica
+  helmValue:
+    key: secrets.ITOMDI_DBA_PASSWORD_KEY_B64
+  dependsOn:
+    andConditions:
+    - parameterName: vertica-db-type
+      valueEquals: vertica
+
+- name: vertica-ro-user
+  label: vertica.dbRoUser.label
+  description: vertica.dbRoUser.desc
+  type:
+    key: STRING
+    isRequired: true
+    defaultValue: vertica_rouser
+    minLength: 1
+    maxLength: 128
+  group: vertica-ro
+  helmValue:
+    key: global.vertica.rouser
+  dependsOn:
+    andConditions:
+    - parameterName: vertica.vertica-db-type
+      valueEquals: vertica
+
+- name: vertica-ro-user-password
+  label: vertica.dbRoPass.label
+  type:
+    key: SECRET
+    isRequired: true
+    complexity: none
+    shouldValidate: false
+    shouldConfirm: false
+  group: vertica-ro
+  helmValue:
+    key: secrets.ITOMDI_ROUSER_PASSWORD_KEY_B64
+  dependsOn:
+    andConditions:
+    - parameterName: vertica.vertica-db-type
+      valueEquals: vertica
+
+- name: cloud-coso-vertica-port
+  group: cloud-vertica
+  label: multiDeploy.port.vertica.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 30000
+    max: 32767
+    defaultValue: 30012
+  helmValue:
+    key: itomdisharedvertica.divertica.config.verticaNodePort
+  dependsOn:
+    andConditions:
+    - parameterName: vertica.vertica-db-type
+      valueEquals: embedded
+    - parameterName: byok.k8s-provider
+      valueEquals: openshift
+
+
+######### Integrations  #########
+
+- name: troubleshooting-sybase-host
+  label: nom.perft.dbhost.label
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 1000
+    #Hostname syntax test.foo.bar
+    #regex: "^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$"
+  group: troubleshooting
+  helmValue:
+    key: itomnomcosodataaccess.sybase.host
+
+- name: troubleshooting-sybase-port
+  label: nom.perft.dbport.label
+  type:
+    key: PORT
+    isRequired: true
+    min: 1
+    max: 65535
+    defaultValue: 9303
+    hostParam: troubleshooting-sybase-host
+  group: troubleshooting
+  helmValue:
+    key: itomnomcosodataaccess.sybase.port
+
+- name: troubleshooting-sybase-name
+  label: nom.perft.dbname.label
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 64
+    defaultValue: perfspi
+  group: troubleshooting
+  helmValue:
+    key: itomnomcosodataaccess.sybase.db
+
+- name: troubleshooting-sybase-user
+  label: nom.perft.dbuser.label
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 64
+    defaultValue: DBA
+  group: troubleshooting
+  helmValue:
+    key: itomnomcosodataaccess.sybase.user
+
+- name: troubleshooting-sybase-user-password
+  label: nom.perft.dbpassword.label
+  toolTip: nom.perft.dbpassword.tip
+  type:
+    key: SECRET
+    isRequired: true
+    shouldValidate: false
+    shouldConfirm: false
+  group: troubleshooting
+  helmValue:
+    key: secrets.SYBASE_DB_PASSWORD_KEY_B64
+
+
+######### Advanced  #########
+- name: monitor-prometheus
+  label: common.monitoring.prometheus.label
+  description: common.monitoring.prometheus.description
+  type:
+    key: BOOLEAN
+    isRequired: false
+    defaultValue: true
+  group: monitoring-params
+  helmValue:
+    key: global.prometheus.deployPrometheusConfig
+
+- name: monitor-grafana
+  label: common.monitoring.grafana.label
+  type:
+    key: BOOLEAN
+    isRequired: false
+    defaultValue: true
+  group: monitoring-params
+  helmValue:
+    key: global.prometheus.deployGrafanaConfig
+- name: aws-loadbalancer-ip
+  label: common.byok.externalHost.aws.label
+  toolTip: common.byok.externalHost.aws.tip
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 64
+  group: byok-params
+  helmValue:
+    key: global.di.cloud.externalAccessHost.pulsar
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: aws
+
+- name: azure-loadbalancer-ip
+  label: common.byok.loadBalancer.ip.label
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 64
+  group: byok-params
+  helmValue:
+    key: global.loadBalancer.ip
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: azure
+
+- name: default-storageClass
+  group: storage
+  label: common.byok.storageClass.default.label
+  type:
+    key: STRING
+    isRequired: false
+    minLength: 1
+    maxLength: 100
+    defaultValue: cdf-default
+    isImmutable: true
+  helmValue:
+    key: global.persistence.storageClasses.default-rwx
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueNotEquals: cdf
+    - parameterName: byok.k8s-provider
+      valueNotEquals: openshift
+
+- name: openshift-default-storageClass
+  group: storage
+  label: common.byok.storageClass.default.label
+  type:
+    key: STRING
+    isRequired: false
+    minLength: 1
+    maxLength: 100
+    defaultValue: ocs-storagecluster-cephfs
+    isImmutable: true
+  helmValue:
+    key: global.persistence.storageClasses.default-rwx
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: openshift
+
+- name: aws-bookkeeper-journal-storageClass
+  group: storage
+  label: common.byok.storageClass.journal.label
+  type:
+    key: STRING
+    isRequired: false
+    minLength: 1
+    maxLength: 100
+    defaultValue: io2
+  helmValue:
+    key: itomdipulsar.bookkeeper.volumes.journal.storageClassName
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: aws
+
+- name: azure-bookkeeper-journal-storageClass
+  group: storage
+  label: common.byok.storageClass.journal.label
+  type:
+    key: STRING
+    isRequired: false
+    minLength: 1
+    maxLength: 100
+    defaultValue: managed-premium
+  helmValue:
+    key: itomdipulsar.bookkeeper.volumes.journal.storageClassName
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: azure
+
+- name: openshift-bookkeeper-journal-storageClass
+  group: storage
+  label: common.byok.storageClass.journal.label
+  type:
+    key: STRING
+    isRequired: false
+    minLength: 1
+    maxLength: 100
+    defaultValue: ocs-storagecluster-ceph-rbd
+  helmValue:
+    key: itomdipulsar.bookkeeper.volumes.journal.storageClassName
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: openshift
+
+- name: aws-bookkeeper-ledgers-storageClass
+  group: storage
+  label: common.byok.storageClass.ledgers.label
+  type:
+    key: STRING
+    isRequired: false
+    minLength: 1
+    maxLength: 100
+    defaultValue: gp3
+  helmValue:
+    key: itomdipulsar.bookkeeper.volumes.ledgers.storageClassName
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: aws
+
+- name: azure-bookkeeper-ledgers-storageClass
+  group: storage
+  label: common.byok.storageClass.ledgers.label
+  type:
+    key: STRING
+    isRequired: false
+    minLength: 1
+    maxLength: 100
+    defaultValue: managed-premium
+  helmValue:
+    key: itomdipulsar.bookkeeper.volumes.ledgers.storageClassName
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: azure
+
+- name: openshift-bookkeeper-ledgers-storageClass
+  group: storage
+  label: common.byok.storageClass.ledgers.label
+  type:
+    key: STRING
+    isRequired: false
+    minLength: 1
+    maxLength: 100
+    defaultValue: ocs-storagecluster-ceph-rbd
+  helmValue:
+    key: itomdipulsar.bookkeeper.volumes.ledgers.storageClassName
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: openshift
+
+- name: aws-zookeeper-storageClass
+  group: storage
+  label: common.byok.storageClass.zookeeper.label
+  type:
+    key: STRING
+    isRequired: false
+    minLength: 1
+    maxLength: 100
+    defaultValue: gp3
+  helmValue:
+    key: itomdipulsar.zookeeper.volumes.data.storageClassName
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: aws
+
+- name: azure-zookeeper-storageClass
+  group: storage
+  label: common.byok.storageClass.zookeeper.label
+  type:
+    key: STRING
+    isRequired: false
+    minLength: 1
+    maxLength: 100
+    defaultValue: managed-premium
+  helmValue:
+    key: itomdipulsar.zookeeper.volumes.data.storageClassName
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: azure
+
+- name: openshift-zookeeper-storageClass
+  group: storage
+  label: common.byok.storageClass.zookeeper.label
+  type:
+    key: STRING
+    isRequired: false
+    minLength: 1
+    maxLength: 100
+    defaultValue: ocs-storagecluster-ceph-rbd
+  helmValue:
+    key: itomdipulsar.zookeeper.volumes.data.storageClassName
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: openshift
+
+- name: coso-monitoring-suffix
+  group: multi-deploy-coso
+  label: coso.monitoring.suffix.label
+  description: coso.monitoring.suffix.desc
+  toolTip: coso.monitoring.suffix.tip
+  type:
+    key: STRING
+    isRequired: true
+    minLength: 1
+    maxLength: 16
+  helmValue:
+    key: itomdimonitoring.monitoring.prometheus.component
+
+- name: pulsar-http-port
+  group: multi-deploy-coso
+  label: multiDeploy.port.pulsar.http.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 1
+    max: 65535
+    defaultValue: 30011
+  helmValue:
+    key: itomdipulsar.proxy.nodePorts.http
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: cdf
+
+- name: pulsar-https-port
+  group: multi-deploy-coso
+  label: multiDeploy.port.pulsar.https.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 1
+    max: 65535
+    defaultValue: 31001
+  helmValue:
+    key: global.di.proxy.nodePorts.https
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: cdf
+
+- name: pulsar-port
+  group: multi-deploy-coso
+  label: multiDeploy.port.pulsar.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 1
+    max: 65535
+    defaultValue: 30050
+  helmValue:
+    key: itomdipulsar.proxy.nodePorts.pulsar
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: cdf
+
+- name: pulsarssl-port
+  group: multi-deploy-coso
+  label: multiDeploy.port.pulsarssl.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 1
+    max: 65535
+    defaultValue: 31051
+  helmValue:
+    key: global.di.proxy.nodePorts.pulsarssl
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: cdf
+
+- name: coso-diadmin-port
+  group: multi-deploy-coso
+  label: multiDeploy.port.diadmin.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 1
+    max: 65535
+    defaultValue: 30004
+  helmValue:
+    key: itomdiadmin.diadmin.config.adminNodePort
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: cdf
+
+- name: coso-dataaccess-port
+  group: multi-deploy-coso
+  label: multiDeploy.port.dataaccess.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 1
+    max: 65535
+    defaultValue: 30003
+  helmValue:
+    key: itomdidataaccess.didataaccess.config.accessNodePort
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: cdf
+
+- name: coso-grafana-port
+  group: multi-deploy-coso
+  label: multiDeploy.port.grafana.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 1
+    max: 65535
+    defaultValue: 30015
+  helmValue:
+    key: itomdimonitoring.monitoring.grafana.nodePort
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: cdf
+
+- name: coso-minio-port
+  group: multi-deploy-coso
+  label: multiDeploy.port.minio.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 1
+    max: 65535
+    defaultValue: 30006
+  helmValue:
+    key: itomdiadmin.diadmin.config.minio.service.nodePort
+  dependsOn:
+    andConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: cdf
+    - parameterName: coso.nom-traffic
+      valueEquals: true
+
+- name: coso-vertica-port
+  group: multi-deploy-coso
+  label: multiDeploy.port.vertica.label
+  type:
+    key: AVAIL_PORT
+    isRequired: false
+    min: 1
+    max: 65535
+    defaultValue: 30012
+  helmValue:
+    key: itomdisharedvertica.divertica.config.verticaNodePort
+  dependsOn:
+    andConditions:
+    - parameterName: vertica.vertica-db-type
+      valueEquals: embedded
+    - parameterName: byok.k8s-provider
+      valueEquals: cdf
+
+
+####################################
+# Evaluations (must come last)
+####################################
+evaluations:
+
+- name: nnmi-classic
+  label: none
+  type:
+    key: EVALUATED_BOOLEAN
+    trueValue: false
+    falseValue: true
+  helmValue:
+    key: global.nnmi.isSelected
+  dependsOn:
+    andConditions:
+    - parameterName: nom.nom-classic-integrations
+      valueEquals: na-only
+
+
+- name: na-classic
+  label: none
+  type:
+    key: EVALUATED_BOOLEAN
+    trueValue: false
+    falseValue: true
+  helmValue:
+    key: global.na.isSelected
+  dependsOn:
+    andConditions:
+    - parameterName: nom.nom-classic-integrations
+      valueEquals: nnmi-only
+
+- name: embedded-vertica
+  label: none
+  type:
+    key: EVALUATED_BOOLEAN
+    trueValue: true
+    falseValue: false
+  helmValue:
+    key: global.vertica.embedded
+  dependsOn:
+    orConditions:
+    - parameterName: vertica.vertica-db-type
+      valueEquals: embedded
+# Compute "global.database.internal" value based on persistence-db-type==embedded
+- name: database-internal-flag
+  label: none
+  type:
+    key: EVALUATED_BOOLEAN
+    trueValue: true
+    falseValue: false
+  helmValue:
+    key: global.database.internal
+  dependsOn:
+    andConditions:
+    - parameterName: database.persistence-db-type
+      valueEquals: embedded
+
+# Compute "global.database.type" value based on persistence-db-type==oracle
+- name: database-type
+  label: none
+  type:
+    key: EVALUATED_STRING
+    trueValue: oracle
+    falseValue: postgresql
+  helmValue:
+    key: global.database.type
+  dependsOn:
+    andConditions:
+    - parameterName: database.persistence-db-type
+      valueEquals: oracle
+# Compute MinIO values based on Traffic flag
+
+
+# if traffic==true, then minIO.isSelected should also be true, otherwise false
+- name: minio-flag
+  label: none
+  type:
+    key: EVALUATED_BOOLEAN
+    trueValue: true
+    falseValue: false
+  helmValue:
+    key: global.minio.isSelected
+  dependsOn:
+    andConditions:
+    - parameterName: coso.nom-traffic
+      valueEquals: true
+    - parameterName: byok.k8s-provider
+      valueNotEquals: aws
+
+# if traffic==true, then expressLoad should also be true, otherwise false
+- name: expressLoadFlag
+  label: none
+  type:
+    key: EVALUATED_BOOLEAN
+    trueValue: true
+    falseValue: false
+  helmValue:
+    key: itomdiadministration.diadmin.config.admin.expressLoadEnabled
+  dependsOn:
+    andConditions:
+    - parameterName: coso.nom-traffic
+      valueEquals: true
+
+- name: bookkeeper-journal-localStorage
+  label: none
+  type:
+    key: EVALUATED_BOOLEAN
+    trueValue: false
+    falseValue: true
+  helmValue:
+    key: itomdipulsar.bookkeeper.volumes.journal.local_storage
+  dependsOn:
+    orConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: aws
+    - parameterName: byok.k8s-provider
+      valueEquals: azure
+
+- name: bookkeeper-ledgers-localStorage
+  label: none
+  type:
+    key: EVALUATED_BOOLEAN
+    trueValue: false
+    falseValue: true
+  helmValue:
+    key: itomdipulsar.bookkeeper.volumes.ledgers.local_storage
+  dependsOn:
+    orConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: aws
+    - parameterName: byok.k8s-provider
+      valueEquals: azure
+
+- name: zookeeper-localStorage
+  label: none
+  type:
+    key: EVALUATED_BOOLEAN
+    trueValue: false
+    falseValue: true
+  helmValue:
+    key: itomdipulsar.zookeeper.volumes.data.local_storage
+  dependsOn:
+    orConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: aws
+    - parameterName: byok.k8s-provider
+      valueEquals: azure
+
+- name: monitoring-size
+  label: none
+  type:
+    key: EVALUATED_STRING
+    # this should match value in suite-assembly/nom-charts/src/main/resources/samples/aws-values.yaml
+    trueValue: "15Gi"
+    falseValue: ""
+  helmValue:
+    key: itomdimonitoring.monitoring.prometheus.persistence.size
+  dependsOn:
+    orConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: aws
+    - parameterName: byok.k8s-provider
+      valueEquals: azure
+
+
+- name: nginx-external-loadbalancer
+  label: none
+  type:
+    key: EVALUATED_BOOLEAN
+    trueValue: false
+    falseValue: true
+  helmValue:
+    key: itom-ingress-controller.nginx.service.external.enable
+  dependsOn:
+    orConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: aws
+    - parameterName: byok.k8s-provider
+      valueEquals: azure
+
+- name: nginx-internal-loadbalancer
+  label: none
+  type:
+    key: EVALUATED_BOOLEAN
+    trueValue: true
+    falseValue: false
+  helmValue:
+    key: itom-ingress-controller.nginx.service.internal.enable
+  dependsOn:
+    orConditions:
+    - parameterName: byok.k8s-provider
+      valueEquals: aws
+    - parameterName: byok.k8s-provider
+      valueEquals: azure
+

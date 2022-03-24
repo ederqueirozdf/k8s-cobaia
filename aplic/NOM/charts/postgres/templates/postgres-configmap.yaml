@@ -1,0 +1,9 @@
+{{ $namePrefix := include "namePrefix" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $namePrefix }}-pgconf
+data:
+  {{- with .Values.postgres.configuration }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}

@@ -1,0 +1,25 @@
+# This is the resource specification for Large size (containerized deployment)
+global:
+  nom:
+    deploySize: large
+
+nommetricstransform:
+  baseline:
+    jvmMin: "4g"
+    jvmMax: "4g"
+    cosoTransformationConcurrency: "20"
+    cosoPulsarAckTimeout: "40"
+    cosoTransformationQueueLimit: "30"
+    maxMessageCount: "15000"
+  deployment:
+    replicas: 3
+  resources:
+    limits:
+      cpu: "1.0"
+      memory: "2Gi"
+
+itomdipulsar:
+  bookkeeper:
+    volumes:
+      ledgers:
+        size: "2Gi"

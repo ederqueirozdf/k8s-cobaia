@@ -1,0 +1,345 @@
+global:
+  # REQUIRED: The external host name and port which will be used by the user to access BVD
+  externalAccessHost: bvd.integraecom.com
+  externalAccessPort: 443
+
+  docker:
+    # set the global.docker.registry and orgName to your internal Docker registry/org
+    registry:
+    orgName:
+    imagePullSecret: ""
+    imagePullPolicy:
+
+  # User ID and group ID to run the BVD containers as
+  securityContext:
+    user:
+    fsGroup:
+
+  # Service account and role creation: true | false
+  # Default is true, if set to false provide the name of the created service account to deployment.rbac.serviceAccount parameter
+  rbac:
+    serviceAccountCreate: true
+    roleCreate: true
+
+  vertica:
+    embedded:
+    host:
+    rwuser:
+    rouser:
+    port:
+    db:
+    rwuserkey:
+    rouserkey:
+    tlsEnabled:
+
+  # persistence.enabled=true means that the PVCs are expected to be dynamically created by the composition chart.
+  # Otherwise, persistence.dataVolumeClaim is a persistent volume claim for storing data files.
+  # persistence.logVolumeClaim is a persistent volume claim for storing log files.
+  # If all of the above are undefined, then temporary ephemeral storage will be created (only if isDemo=true)
+  persistence:
+    enabled:
+    configVolumeClaim:
+    dbVolumeClaim:
+
+  # If isDemo is true, this will allow use of ephemeral storage and other POC aspects.
+  isDemo:
+
+  idm:
+    tenant:
+    transportUser:
+    transportUserKey:
+    # The name of a user which can be used by other services to communicate with BVD.
+    # It automatically gets administrative privileges assigned.
+    integrationUser:
+    integrationUserKey:
+    # If IDM external port is not equal to global.externalAccessPort (default scenario),
+    # then we need to inject that value
+    internalPort:
+    externalAccessPort:
+    serviceName:
+
+  nginx:
+    annotationPrefix:
+
+  setFqdnInIngress:
+
+  # global trustStore
+  tlsTruststore:
+
+  database:
+    # internal: true/false, default value true indicates use embedded postgres and default values for host, port, name will be used
+    # false indicates external db will be used and the values for the below params should be provided
+    internal:
+
+    # db engine type: postgresql or oracle
+    # - default: postgresql
+    type:
+
+    # true/false: whether bvd should create its own database and database details will not be provided
+    # if true, then "admin" and "adminPasswordKey" are required to create DBs
+    createDb:
+    admin:
+    adminPasswordKey:
+
+    # DB host
+    host:
+
+    # DB port
+    port:
+
+    # Database name for Postgres
+    dbName:
+
+    # Database user
+    user:
+
+    # Database user password key
+    userPasswordKey:
+
+    # Oracle SID, ConnectionString or ServiceName
+    oracleSid:
+    oracleConnectionString:
+    oracleServiceName:
+
+    # Name of a config map that holds exactly one key which is called “oraclewallet.zip”
+    oracleWalletName:
+
+    # true when TLS is enabled
+    tlsEnabled:
+
+    # TLS cert
+    tlsCert:
+
+    # global.database trustStore
+    tlsTruststore:
+
+  # keys_zone name for static content caching. It can be found in nginx controller 'proxy_cache_path' configuration
+  staticCacheKeysZone:
+
+  # global image references
+  vaultRenew:
+    image:
+    imageTag:
+  vaultInit:
+    image:
+    imageTag:
+  busybox:
+    image:
+    imageTag:
+  itomRedis:
+    image:
+    imageTag:
+  toolsBase:
+    image:
+    imageTag:
+
+  # Specify featureToggles to enable upcoming features
+  featureToggles: {}
+
+  services:
+    sharedOpticReporting:
+    internal:
+      host:
+      port:
+    external:
+      host:
+      port:
+
+# Assigning pods to cluster nodes
+nodeSelector: []
+
+tolerations: []
+
+affinity: {}
+
+deployment:
+  # deployment.database.* takes precedence over global.database.* parameters above
+  database:
+    type:
+    host:
+    port:
+    createDb:
+    admin:
+    adminPasswordKey:
+    dbName:
+    user:
+    userPasswordKey:
+    oracleSid:
+    oracleConnectionString:
+    oracleServiceName:
+    tlsEnabled:
+    tlsCert:
+
+  ingress:
+    annotations:
+
+  # Name of the serviceAccount to be created and used (Default is bvd)
+  # If global.rbac.serviceAccountCreate is set to false provide the name of the service account already created
+  rbac:
+    serviceAccount: bvd
+
+# Consuming charts can declare a namePrefix which will cause all names (service names, deployment names, etc.)
+# to be prefixed with the specified value, instead of default "itom" prefix.  This enables multiple
+# instances of the chart in a single namespace.
+namePrefix:
+
+smtpServer:
+  host:
+  port:
+  # Specify the security to use. Possible values: TLS or STARTTLS
+  security:
+  user:
+  passwordKey: schedule_mail_password_key # [DO NOT CHANGE] Password key for SMTP user
+
+params:
+  # Ability to deploy reporting or uif (UI Foundation) only (By default both the capabilities will be enabled)
+  # Atleast one of the capability should be enabled when overriding the defaults
+  # capability_name: <boolean>
+  capability:
+    reporting: true
+    uif: true
+
+  # Default value for "Allow to embed BVD in iframes" system setting
+  securityFrames: "false"
+  # The name of an IdM user role whose users will get administrative privileges in BVD
+  adminRole: "bvd_admin"
+  # Default value for "Aging - Data records" system setting
+  agingAge: "10"
+  # Default value for "Aging - Data channel statistics" system setting
+  agingStats: "1"
+  timeFormat: ""
+
+  # Specify first day of the week, eg- "Sunday". If no value is specified the default first day of the week would be "Monday"
+  startOfTheWeek:
+
+  # HTTPS Proxy configuration
+  httpsProxy:
+
+  # Explore and Reporting context roots
+  # exploreContextRoot: "/dashboard"
+  # bvdContextRoot: "/bvd"
+  exploreContextRoot:
+  bvdContextRoot:
+
+  # Server timeout for a request received in 'milliseconds'
+  # Used for www and quexserv servers
+  # If not provided a default of 4 minutes would be used as timeout value
+  # If configured ensure nginx property 'proxy-read-timeout' also has the same or greater value
+  reqTimeout:
+
+  # Prometheus details for Foundation self monitoring
+  prometheusHost:
+  prometheusPort:
+
+  # provide ability for composition chart to change branding of BVD [DO NOT CHANGE]
+  suite:
+    logo:
+    logo_large:
+    family_color:
+    family_name:
+    family_icon_letter:
+    favicon:
+    name:
+    printtool:
+    release:
+    helpProductId:
+
+  # Internal flag for code coverage data collection [DO NOT CHANGE]
+  testing: false
+
+  # DEBUG/Logging level. Default logging level is bvd:error*,bvd:audit*
+  debug:
+
+  # Vertica Pool size details for Quexserver
+  # if not provided default value will be dbMaxPoolSize=5, dbMinPoolSize=2
+  dbMaxPoolSize:
+  dbMinPoolSize:
+
+  # BVD service url to fetch BVD Dashboards to be listed in Explore UI
+  # if not provided default will be https://bvd-www:4000/bvd
+  bvdServiceUrl:
+
+#####################
+# Image definitions
+#####################
+autopassBridge:
+  image: itom-bvd-autopass-bridge
+  imageTag: 11.8.11
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 0.1
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+      cpu: 1
+bvd:
+  image: itom-bvd
+  imageTag: 11.8.11
+  controller:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 0.1
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+        cpu: 1
+  explore:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 0.1
+        memory: 256Mi
+      limits:
+        memory: 2Gi
+        cpu: 2
+  quexserv:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 0.1
+        memory: 256Mi
+      limits:
+        memory: 2Gi
+        cpu: 2
+  receiver:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 0.1
+        memory: 256Mi
+      limits:
+        memory: 2Gi
+        cpu: 2
+  www:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 0.1
+        memory: 256Mi
+      limits:
+        memory: 2Gi
+        cpu: 2
+redis:
+  image: itom-redis
+  imageTag: 11.8.11
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 0.1
+      memory: 1Gi
+    limits:
+      memory: 2Gi
+      cpu: 2
+webtopdf:
+  image: itom-web-to-pdf
+  imageTag: 11.8.11
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 0.1
+      memory: 256Mi
+    limits:
+      memory: 3Gi
+      cpu: 1

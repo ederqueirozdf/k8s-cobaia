@@ -1,0 +1,32 @@
+{{- if and (semverCompare ">=1.21-0" .Capabilities.KubeVersion.GitVersion) (.Capabilities.APIVersions.Has "batch/v1") -}}
+apiVersion: batch/v1
+{{- else }}
+apiVersion: batch/v1beta1
+{{- end }}
+kind: CronJob
+metadata:
+  name: {{ template "monitoring.fullname" . }}-{{ .Values.monitoring.gencerts.component }}-cronjob
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: "{{ template "monitoring.fullname" . }}-{{ .Values.monitoring.gencerts.component }}"
+    {{- include "monitoring.standardLabels" . | nindent 4 }}
+spec:
+  schedule: "{{ .Values.monitoring.gencerts.scheduleCron }}"
+  successfulJobsHistoryLimit: 0
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    {{- include "gencerts.job.spec" . | nindent 4 }}
+---
+# Kick off job for initial run (CronJob does not run a job immediately)
+{{ if .Capabilities.APIVersions.Has "batch/v1" -}}
+apiVersion: batch/v1
+{{- else }}
+apiVersion: batch/v1beta1
+{{- end }}
+kind: Job
+metadata:
+  name: {{ template "monitoring.fullname" . }}-{{ .Values.monitoring.gencerts.component }}-job
+  labels:
+    app.kubernetes.io/name: "{{ template "monitoring.fullname" . }}-{{ .Values.monitoring.gencerts.component }}"
+    {{- include "monitoring.standardLabels" . | nindent 4 }}
+{{- include "gencerts.job.spec" . | nindent 0 }}

@@ -1,0 +1,89 @@
+{{- $isPerfBvd := (eq ( printf "%s" .Values.global.nom.edition )  "perf-bvd") -}}
+
+{{- if and $isPerfBvd .Values.global.database.internal -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: register-backup-job-{{ randAlphaNum 7 | lower }}
+spec:
+  ttlSecondsAfterFinished: {{ .Values.global.jobs.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        name: register-backup-job
+      annotations:
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        pod.boostport.com/vault-init-container: install
+    spec:      
+      serviceAccountName: nom-core      
+      restartPolicy: OnFailure
+      initContainers:
+      {{- include "helm-lib.waitForVault" . | nindent 6 }}
+      {{- include "helm-lib.waitFor" (dict "service" "itom-pg-backup" "port" "8443" "Values" .Values) | nindent 6 }}
+      {{- include "helm-lib.waitFor" (dict "service" (printf "%s%s" .Values.deployment.idm.namePrefix .Values.deployment.idm.service ) "port" "18443" "Values" .Values) | nindent 6 }}
+
+      - name: install
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+        env:
+        {{- if .Values.global.vaultAppRole }}
+        - name: VAULT_ROLE_ID
+          value: {{ required "Required value not defined: vaultRoleId" .Values.global.vaultRoleId }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: /var/run/secrets/boostport.com
+          name: vault-token
+
+      containers:
+      - name: register-backup
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.nomConfig.image }}:{{ .Values.nomConfig.imageTag }}
+        {{- if .Values.global.containerizedMode }}
+        args: ["/tasks/registerbackup/100-register-backup-fullMode.json"]
+        {{- else }}
+        args: ["/tasks/registerbackup/100-register-backup-mixedMode.json"]
+        {{- end }}
+        env:
+        - name: BACKUP_SVC_HOST
+          value: "itom-pg-backup"
+        - name: BACKUP_SVC_PORT
+          value: "8443"
+        - name: IDM_HOST
+          value: "{{ .Values.deployment.idm.namePrefix }}idm-svc.{{ .Release.Namespace }}.svc.cluster.local"
+        - name: IDM_PORT
+          value: "18443"
+        - name: IDM_USER
+          value: "nom_admin"
+        - name: IDM_PASSWORD_KEY
+          value: "idm_nom_admin_password"
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        volumeMounts:
+        - mountPath: /var/run/secrets/boostport.com
+          name: vault-token
+        {{- if .Values.global.database.tlsTruststore }}
+        - name: certs-volume
+          mountPath: /data/nom/certificates
+        {{- end }}
+
+      volumes:
+      - name: vault-token
+        emptyDir: {}
+      {{- if .Values.global.database.tlsTruststore }}
+      - name: certs-volume
+        configMap:
+          name: {{ .Values.global.database.tlsTruststore }}
+       {{- end }}
+{{- else -}}
+# we need to deploy SOMETHING in this file, to prevent errors during "helm delete" of empty file
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: register-backup-cm
+data:
+  opsbridgeIntegration: {{ .Values.global.opsbridgeIntegration.isSelected | quote }}
+  internalDatabase: {{ .Values.global.database.internal | quote }}
+  containerizedMode: {{ .Values.global.containerizedMode | quote }}
+  edition: {{ .Values.global.nom.edition }}
+{{- end }}

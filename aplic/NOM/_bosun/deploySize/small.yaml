@@ -1,0 +1,25 @@
+# This is the resource specification for Small size (containerized deployment)
+global:
+  nom:
+    deploySize: small
+
+  #=========================================
+  #### NOM PVC SIZE for 10k ####
+  #=========================================
+  persistence:
+    logVolumeSize: 1Gi
+    dataVolumeSize: 1Gi
+    configVolumeSize: 1Gi
+    dbVolumeSize: 1Gi
+    monitoringVolumeSize: 1Gi
+
+
+nommetricstransform:
+  baseline:
+    jvmMax: "3072m"
+  deployment:
+    replicas: 3
+  resources:
+    limits:
+      cpu: "1.0"
+      memory: "2000Mi"

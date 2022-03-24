@@ -1,0 +1,6 @@
+global:
+  persistence:
+    dataVol:
+    dbVol:
+  # Used for instances of injected services, i.e. "global.instance.zookeeper" or "global.instance.postgres"
+  instance: {}

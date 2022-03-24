@@ -1,0 +1,16 @@
+{{ $namePrefix := include "namePrefix" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $namePrefix }}-postgresql
+  labels:
+    name: {{ $namePrefix }}-postgresql
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+    name: "pg-port"
+  selector:
+    name: {{ $namePrefix }}-postgresql

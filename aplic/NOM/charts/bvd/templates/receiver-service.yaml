@@ -1,0 +1,22 @@
+{{- if .Values.params.capability.reporting }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: bvd-receiver
+  namespace: {{ .Release.Namespace }}
+  labels:
+    service: bvd-receiver
+    app.kubernetes.io/name: bvd-receiver
+    app.kubernetes.io/managed-by: bvd-config
+    app.kubernetes.io/version: {{ .Values.bvd.imageTag }}
+    itom.microfocus.com/capability: bvd  
+    tier.itom.microfocus.com/receiverService: receiverService
+spec:
+  ports:
+  - name: data-receiver
+    port: 4000
+    protocol: TCP
+    targetPort: 4000
+  selector:
+    service: bvd-receiver
+{{- end }}

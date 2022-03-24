@@ -1,0 +1,11 @@
+apiVersion: v2
+appVersion: 2.8.1-26
+dependencies:
+- name: helm-lib
+  version: 1.4.10
+description: Micro Focus Apache Pulsar Helm chart for Kubernetes
+maintainers:
+- email: swpdl.askstoreonce@microfocus.com
+  name: ITOM-DI
+name: itomdipulsar
+version: 2.8.1-31

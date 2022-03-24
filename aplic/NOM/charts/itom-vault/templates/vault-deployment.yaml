@@ -1,0 +1,225 @@
+{{ $namePrefix := include "namePrefix" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.namePrefix }}-vault
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.namePrefix }}-vault-app
+    deployments.microfocus.com/component: itom-vault
+  annotations:
+    deployment.microfocus.com/default-replica-count: {{ if and (or (hasPrefix "cdf-" .Values.global.cluster.k8sProvider) (eq .Values.global.cluster.k8sProvider "cdf")) (eq .Values.vault.vaultBackend "etcd") }}"{{ .Values.vault.vaultReplicas }}"{{ else }}"1"{{ end }}
+    deployment.microfocus.com/runlevel: DB
+    deployment.microfocus.com/simple-update: ignore
+spec:
+  replicas: {{ if and (or (hasPrefix "cdf-" .Values.global.cluster.k8sProvider) (eq .Values.global.cluster.k8sProvider "cdf")) (eq .Values.vault.vaultBackend "etcd") }}{{ .Values.vault.vaultReplicas }}{{ else }}1{{ end }}
+  selector:
+    matchLabels:
+      app: {{ .Values.namePrefix }}-vault-app
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.namePrefix }}-vault-app
+        deployments.microfocus.com/component: itom-vault
+    spec:
+      serviceAccountName: {{ template "itom-vault.serviceAccountName" . }}
+      {{- if .Values.global.docker.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.global.docker.imagePullSecret }}
+      {{- end }}
+      {{- with ( coalesce .Values.nodeSelector .Values.global.nodeSelector ) }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ $namePrefix }}-vault-app
+              topologyKey: "kubernetes.io/hostname"
+      {{- if or .Values.deployment.tolerations .Values.global.cluster.tolerations }}
+      tolerations:
+      {{- if .Values.deployment.tolerations }}
+      {{- toYaml .Values.deployment.tolerations | nindent 8 }}
+      {{- end }}
+      {{- if .Values.global.cluster.tolerations }}
+      {{- toYaml .Values.global.cluster.tolerations | nindent 8 }}
+      {{- end }}
+      {{- end }}
+      hostname: {{ .Values.namePrefix }}-vault
+      {{ if .Values.vault.migrate }}
+      initContainers:
+      - name: migration
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.vault.image }}:{{ .Values.vault.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        command: ['sh', '-c', '/vault_migration.sh']
+        env:
+        - name: ETCD_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: cdf-cluster-host
+              key: ETCD_ENDPOINT
+        - name: VAULT_BACKEND
+          value: "etcd"
+        - name: ETCD_DATA_DIR
+          value: default
+        - name: ETCD_TLS_CA_FILE
+          value: /ssl/etcd_ca.crt
+        - name: ETCD_TLS_CERT_FILE
+          value: /ssl/etcd_client.crt
+        - name: ETCD_TLS_KEY_FILE
+          value: /ssl/etcd_client.key
+        - name: REALM_LIST
+          value: "{{ .Values.global.vault.realmList }}"
+        - name: SERVICE_PREFIX
+          value: "{{ .Values.namePrefix }}"
+        resources:
+          limits:
+            cpu: 2
+            memory: 2048Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        volumeMounts:
+        - mountPath: /coreVolumeRoot
+          name: core-volume
+        - mountPath: /ssl
+          name: vault-certs
+      {{- end }}
+      containers:
+      - name: vault
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.vault.image }}:{{ .Values.vault.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        livenessProbe:
+          exec:
+            command: ["/probe.sh", "liveness"]
+          failureThreshold: 8
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          timeoutSeconds: 15
+        readinessProbe:
+          exec:
+            command: ["/probe.sh", "readiness"]
+          failureThreshold: 8
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          timeoutSeconds: 15
+        env:
+        {{- if .Values.global.cluster.k8sProvider }}
+        {{- if or (hasPrefix "cdf-" .Values.global.cluster.k8sProvider) (eq .Values.global.cluster.k8sProvider "cdf") }}
+        - name: K8S_INSTALL_MODE
+          value: "CLASSIC"
+        {{- else }}
+        - name: K8S_INSTALL_MODE
+          value: "BYOK"
+        {{- end }}
+        - name: RELEASE_NAME
+          value: {{ .Release.Name }}
+        {{- else }}
+        - name: K8S_INSTALL_MODE
+          value: "{{ .Values.vault.k8sInstallMode }}"
+        {{- end }}
+        - name: VAULT_BACKEND
+          value: "{{ .Values.vault.vaultBackend }}"
+        - name: SYSTEM_USER_ID
+          value: "{{ default "1999" .Values.global.securityContext.user }}"
+        - name: SYSTEM_GROUD_ID
+          value: "{{ default "1999" .Values.global.securityContext.fsGroup }}"
+        {{- if eq .Values.vault.vaultBackend "etcd" }}
+        - name: ETCD_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: cdf-cluster-host
+              key: ETCD_ENDPOINT
+        - name: ETCD_DATA_DIR
+          value: default
+        - name: ETCD_TLS_CA_FILE
+          value: /ssl/etcd_ca.crt
+        - name: ETCD_TLS_CERT_FILE
+          value: /ssl/etcd_client.crt
+        - name: ETCD_TLS_KEY_FILE
+          value: /ssl/etcd_client.key
+        {{- else }}
+        - name: ETCD_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: cdf-cluster-host
+              key: ETCD_ENDPOINT
+              optional: true
+        - name: ETCD_DATA_DIR
+          value: ""
+        - name: ETCD_TLS_CA_FILE
+          value: ""
+        - name: ETCD_TLS_CERT_FILE
+          value: ""
+        - name: ETCD_TLS_KEY_FILE
+          value: ""
+        {{- end }}
+        - name: VAULT_TLS_CA_FILE
+          value: "/ssl/ca.crt"
+        - name: VAULT_REDIRECT_ADDR
+          value: "https://{{ .Values.namePrefix }}-vault.{{ .Release.Namespace }}:8200"
+        - name: VAULT_SERVER_IP
+          value: "{{ .Values.namePrefix }}-vault.{{ .Release.Namespace }}"
+        - name: ETCD_HA_ENABLED
+          value: "1"
+        - name: DEPLOYMENT_TYPE
+          value: "{{ .Values.vault.deploymentType }}"
+        - name: REALM_LIST
+          value: "{{ .Values.global.vault.realmList }}"
+        - name: SERVICE_PREFIX
+          value: "{{ .Values.namePrefix }}"
+        - name: DISABLE_MLOCK
+          value: "true"
+        - name: "ENABLE_KUBERNETES_AUTHENTICATION"
+          value: "false"
+        {{- if .Values.global.initSecrets }}
+        - name: INIT_SECRETS
+          value: "{{ .Values.global.initSecrets }}"
+        {{- end }}
+        resources:
+          limits:
+            cpu: 2
+            memory: 2048Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        volumeMounts:
+        - mountPath: /coreVolumeRoot
+          name: core-volume
+        - mountPath: /ssl
+          name: vault-certs
+      securityContext:
+        runAsUser: {{ default "1999" .Values.global.securityContext.user }}
+        fsGroup: {{ default "1999" .Values.global.securityContext.fsGroup }}
+        runAsGroup: {{ default "1999" .Values.global.securityContext.fsGroup }}
+        supplementalGroups: [{{ default "1999" .Values.global.securityContext.fsGroup }}]
+      volumes:
+      - name: core-volume
+        {{- include "helm-lib.pvcStorage" (dict "claim" "dataVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      - name: vault-certs
+        emptyDir: {}
+
+{{ if eq .Values.vault.vaultBackend "etcd" }}
+---
+{{- if .Capabilities.APIVersions.Has "policy/v1/PodDisruptionBudget" }}
+apiVersion: policy/v1
+{{- else }}
+apiVersion: policy/v1beta1
+{{- end }}
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Values.namePrefix }}-vault-pdb
+  namespace: {{ .Release.Namespace }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.namePrefix }}-vault-app
+{{ end }}

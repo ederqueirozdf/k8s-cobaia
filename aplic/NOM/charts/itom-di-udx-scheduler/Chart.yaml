@@ -1,0 +1,11 @@
+apiVersion: v2
+appVersion: 2.5.0-33
+dependencies:
+- name: helm-lib
+  version: 1.4.10
+description: Scheduling Helm chart for Pulsar UDX
+maintainers:
+- email: swpdl.askstoreonce@microfocus.com
+  name: ITOM-DI
+name: itom-di-udx-scheduler
+version: 2.5.0-33

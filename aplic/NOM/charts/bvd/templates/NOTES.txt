@@ -1,0 +1,7 @@
+(C) Copyright 2020 Micro Focus LLC.
+
+** Please be patient while the chart is being deployed **
+
+This chart deploys ITOM Reporting and Foundation.
+
+

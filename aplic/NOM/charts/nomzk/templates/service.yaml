@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nomzk
+  labels:
+    app.kubernetes.io/name: nomzk
+    name: itom-nom-zookeeper
+spec:
+  ports:
+  - port: 2888
+    name: server
+  - port: 3888
+    name: leader-election
+  clusterIP: None
+  selector:
+    name: itom-nom-zookeeper
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nomzk-client-svc
+  labels:
+    app.kubernetes.io/name: nomzk-client-svc
+    name: itom-nom-zookeeper
+spec:
+  ports:
+    - port: 2181
+      name: client
+  selector:
+    name: itom-nom-zookeeper

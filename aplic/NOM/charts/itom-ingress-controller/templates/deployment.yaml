@@ -1,0 +1,218 @@
+{{ $namePrefix := include "namePrefix" . }}
+{{ $defaultBackendService := .Values.nginx.defaultBackendService }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $namePrefix }}-ingress-controller
+  labels:
+  {{- if .Values.labels }}
+  {{- toYaml .Values.labels | nindent 4 }}
+  {{- end }}
+  {{- include "itom-nginx-ingress-controller.labels" . | nindent 4 }}
+  annotations:
+  {{- toYaml .Values.nginx.deploymentAnnotations | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+     {{- include "itom-nginx-ingress-controller.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "itom-nginx-ingress-controller.selectorLabels" . | nindent 8 }}
+        {{- if .Values.labels }}
+        {{- toYaml .Values.labels | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        pod.boostport.com/vault-init-container: install
+    spec:
+      serviceAccountName: {{ template "itom-nginx-ingress-controller.serviceAccountName" . }}
+      securityContext:
+        runAsUser: {{ default 1999 .Values.global.securityContext.user }}
+        runAsGroup: {{ default 1999 .Values.global.securityContext.fsGroup }}
+        fsGroup: {{ default 1999 .Values.global.securityContext.fsGroup }}
+        supplementalGroups: [{{ default 1999 .Values.global.securityContext.fsGroup }}]
+      initContainers:
+      {{- include "helm-lib.waitForVaultNoSecurityContext" . | nindent 6 }}
+      - name: install
+        image: "{{ .Values.global.docker.registry  }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image  }}:{{.Values.global.vaultInit.imageTag }}"
+        {{- if ne .Values.global.externalAccessHost ""}}
+        env:
+        - name: CERT_COMMON_NAME
+          value: Realm:RE,Common_Name:{{ .Values.global.externalAccessHost }},Secret:{{ .Values.nginx.secretName }},UpdateSecret:false,File_Name:tls
+        {{- end }}
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+      containers:
+        - name: nginx-ingress-lb
+          image: "{{ .Values.global.docker.registry}}/{{ .Values.global.docker.orgName }}/{{ .Values.nginx.image }}:{{ .Values.nginx.imageTag }}"
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 10254
+              scheme: HTTP
+            initialDelaySeconds: 30
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 200Mi
+            limits:
+              cpu: 1500m
+              memory: 500Mi
+          env:
+            - name: ACCESS_LOG_SIZE
+              value: {{ .Values.accessLog.size | quote }}
+            - name: ACCESS_LOG_ROTATE
+              value: {{ .Values.accessLog.rotate | quote }}
+            - name: NGINX_CONFIG
+              value: {{ $namePrefix }}-ingress-controller-conf
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: CONTAINER_NAME
+              value: nginx-ingress-lb
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: SYSTEM_USER_ID
+              value: {{ .Values.global.securityContext.user | quote }}
+            {{- if and .Values.nginx.service.external.clientCertAuthPort .Values.nginx.service.external.sslClientCertCAsCM }}
+            - name: CLIENT_CERT_AUTH_PORT
+              value: {{ .Values.nginx.service.external.clientCertAuthPort | quote }}
+            - name: SSL_VERIFY_DEPTH
+              value: {{ .Values.nginx.service.external.sslVerifyDepth | quote }}
+            - name: CLIENT_CERT_HEADER
+              value: {{ .Values.nginx.service.external.clientCertHeader | quote }}
+            - name: SSL_CERT_NAME
+              value: {{ .Values.nginx.secretName | quote }}
+            {{- if .Values.nginx.service.external.clientCertAuthIngressHost }}
+            - name: CLIENT_CERT_AUTH_INGRESS_HOST
+              value: {{ .Values.nginx.service.external.clientCertAuthIngressHost | quote }}
+            {{- else }}
+            - name: CLIENT_CERT_AUTH_INGRESS_HOST
+              value: "_"
+            {{- end }}
+            {{- end }}
+          args:
+            - /nginx-ingress-controller
+            {{- if .Values.defaultBackendRequired }}
+            {{- if and (not .Values.nginx.defaultBackendService) (not .Values.global.nginx.defaultBackendService)}}
+            {{- cat "ERROR: Neither nginx.defaultBackendService nor global.nginx.defaultBackendService is defined" | fail }}
+            {{- end }}
+            - --default-backend-service={{ .Release.Namespace }}/{{ coalesce .Values.nginx.defaultBackendService .Values.global.nginx.defaultBackendService }}
+            {{- end }}
+            - --default-ssl-certificate={{ .Release.Namespace }}/{{ .Values.nginx.secretName }}
+            - --v=0
+            - --configmap={{ .Release.Namespace }}/{{ $namePrefix }}-ingress-controller-conf
+            - --watch-namespace={{ .Release.Namespace }}
+            - --annotations-prefix={{ .Values.global.nginx.annotationPrefix }}
+            - --enable-ssl-chain-completion=false
+            - --http-port=8080
+            - --https-port=8443
+            - --update-status=false
+            {{- if .Values.tcpServiceConfigmap }}
+            - --tcp-services-configmap={{.Release.Namespace}}/{{.Values.tcpServiceConfigmap}}
+            {{- end }}
+            - --ingress-class={{ .Values.nginx.ingressClass }}
+          volumeMounts:
+            - name: vault-token
+              mountPath: /var/run/secrets/boostport.com
+            - name: etc-ingress-controller-ssl
+              mountPath: /etc/ingress-controller/ssl
+            {{- if index .Values.nginx.configuration "access-log-path" }}
+            - name: log-dir
+              mountPath: /tmp/log/nginx
+              subPath: nginx
+            - name: nginx-log-dir
+              mountPath: {{ (index .Values.nginx.configuration "access-log-path") | dir }}
+            - name: logratate-cfg
+              mountPath: /etc/logrotate.d/
+            - name: nginx-status
+              mountPath: /var/lib/misc/
+            {{- end }}
+            {{- if .Values.nginx.service.external.sslClientCertCAsCM }}
+            - name: pki-auth-ca
+              mountPath: /var/run/secrets/boostport.com/pki_auth_ca
+            {{- end }}
+            {{- if or (hasSuffix "frontend-ui" $defaultBackendService ) (hasSuffix "mng-portal" $defaultBackendService) }}
+            - name: nginx-template
+              {{- if hasSuffix "frontend-ui" $defaultBackendService }}
+              mountPath: /etc/nginx/template/nginx.tmpl
+              subPath: nginx.tmpl
+              {{- else }}
+              mountPath: /etc/nginx/template/nginx-placeholder.tmpl
+              subPath: nginx-5443.tmpl
+            {{- end }}
+            {{- end }}
+        - name: kubernetes-vault-renew
+          image: "{{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultRenew.image }}:{{.Values.global.vaultRenew.imageTag }}"
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: vault-token
+              mountPath: /var/run/secrets/boostport.com
+          resources:
+            limits:
+              cpu: 100m
+              memory: 200Mi
+            requests:
+              cpu: 5m
+              memory: 5Mi
+      volumes:
+        - name: vault-token
+          emptyDir: {}
+        - name: etc-ingress-controller-ssl
+          emptyDir: {}
+        {{- if index .Values.nginx.configuration "access-log-path" }}
+        - name: log-dir
+        {{- include "helm-lib.pvcStorage" (dict "claim" "logVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 10 }}
+        - name: nginx-log-dir
+          emptyDir: {}
+        - name: logratate-cfg
+          emptyDir: {}
+        - name: nginx-status
+          emptyDir: {}
+        {{- end }}
+        {{- if or (hasSuffix "frontend-ui" $defaultBackendService ) (hasSuffix "mng-portal" $defaultBackendService) }}
+        - name: nginx-template
+          configMap:
+            name: {{ $namePrefix }}-nginx-ingress-template
+        {{- end }}
+        {{- if and .Values.nginx.service.external.clientCertAuthPort .Values.nginx.service.external.sslClientCertCAsCM }}
+        - name: pki-auth-ca
+          configMap:
+            name: {{ .Values.nginx.service.external.sslClientCertCAsCM }}
+        {{- end }}
+      {{- with (coalesce .Values.nodeSelector .Values.global.nodeSelector) }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - {{ include "namePrefix" . }}-ingress-controller
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      {{- end }}

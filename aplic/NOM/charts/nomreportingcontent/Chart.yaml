@@ -1,0 +1,9 @@
+apiVersion: v2
+appVersion: 02.01.116
+dependencies:
+- name: helm-lib
+  repository: https://chartmuseum.integraecom.com/bb/catalogo/
+  version: 1.5.28
+description: Micro Focus Network Operations Management - Content for BVD/COSO
+name: nomreportingcontent
+version: 1.4.135

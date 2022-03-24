@@ -1,0 +1,489 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bvd-controller-deployment
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    deployment.microfocus.com/default-replica-count: "1"
+    deployment.microfocus.com/runlevel: UP
+  labels:
+    service: bvd-controller
+    app.kubernetes.io/name: bvdController
+    app.kubernetes.io/managed-by: bvd-config
+    app.kubernetes.io/version: {{ .Values.bvd.imageTag }}
+    itom.microfocus.com/capability: bvd
+    tier.itom.microfocus.com/controller: controller
+spec:
+  replicas: {{ .Values.bvd.controller.replicaCount }}
+  selector:
+    matchLabels:
+      service: bvd-controller
+      itom.microfocus.com/capability: bvd
+  template:
+    metadata:
+      labels:
+        service: bvd-controller
+        itom.microfocus.com/capability: bvd
+      annotations:
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        pod.boostport.com/vault-init-container: install
+        {{- include "bvd.monitorConfigmap" (dict "Values" .Values) | nindent 8 }}
+    spec:
+      serviceAccount: {{ .Values.deployment.rbac.serviceAccount }}
+      serviceAccountName: {{ .Values.deployment.rbac.serviceAccount }}
+      initContainers:
+      {{- include "helm-lib.waitFor" (dict "service" "bvd-redis" "port" 6380 "Values" .Values "addSecurityContext" true) | nindent 6 }}
+      {{- include "helm-lib.waitFor" (dict "service" (coalesce (include "helm-lib.getInternalIdmHost" .) .Values.global.idm.serviceName "itom-idm-svc") "port" (coalesce (include "helm-lib.getInternalIdmPort" .) .Values.global.idm.internalPort "18443") "Values" .Values "addSecurityContext" true) | nindent 6 }}
+      - name: install
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+        env:
+        {{- if .Values.global.vaultAppRole }}
+        - name: "VAULT_ROLE_ID"
+          value: "{{ .Values.global.vaultRoleId }}"
+        {{- end }}
+        - name: "CERT_COMMON_NAME"
+          value: Realm:RID,Common_Name:bvd-controller,Additional_SAN:bvd-controller.{{ .Release.Namespace }}/bvd-controller.{{ .Release.Namespace }}.svc.cluster.local,File_Name:bvd-controller
+        volumeMounts:
+        - name: "vault-token"
+          mountPath: /var/run/secrets/boostport.com
+        securityContext:
+          procMount: Default
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.securityContext.user | int64 }}
+          runAsGroup: {{ .Values.global.securityContext.fsGroup | int64 }}
+      - name: databasecreation
+        args:
+        - init
+        env:
+        - name: DEFAULT_FOUNDATION_ROLES
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.defaultFoundationRoles
+              optional: true
+        - name: BVD_ADMIN_LOGIN_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.adminname.key
+        - name: BVD_ADMIN_PASSWORD_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.adminpassword.key
+        - name: BVD_API_KEY_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.apikey.key
+        - name: DEBUG
+          value: {{ .Values.params.debug | default "bvd:error*,bvd:audit*" | quote }}
+        - name: SYSTEM_USER_ID
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.systemUID
+        - name: SYSTEM_GROUP_ID
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.systemGID
+        - name: "BVD_CREATEDB"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.createDB
+              optional: true
+        - name: "BVD_DB_ADMIN_USER"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbAdminUser
+              optional: true
+        - name: "BVD_DB_ADMIN_PASSWORD_KEY"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbAdminPassword.key
+              optional: true
+        - name: "BVD_DB_ADMIN_DBNAME"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbAdmin.dbName
+              optional: true
+        - name: "BVD_DB_USER"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbuser
+        - name: "POSTGRES_PASSWORD_KEY"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbpassword.key
+        - name: "BVD_DB_HOST"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbhost
+        - name: "BVD_DB_PORT"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbport
+        - name: "BVD_DB_NAME"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbname
+        - name: "BVD_DB_SID"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbsid
+        - name: "BVD_DB_TYPE"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbType
+        - name: "BVD_DB_CONNECTION_STRING"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbConnectionString
+        - name: "BVD_DB_CA_BASE64_KEY"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbCa.base64.key
+        - name: "BVD_DB_CA_BASE64"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbCa.base64
+        - name: "BVD_DB_USE_TLS"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbUseTLS
+        - name: "BVD_USE_TLS"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.UseTLS
+        - name: "COLLECT_PROMETHEUS_METRICS"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.collectPrometheusMetrics
+        - name: "NAMESPACE"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-services-config
+              key: suite.namespace
+        - name: REDIS_PWD_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.redispassword.key
+        - name: "APPROLE"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.approle
+        - name: "ROLE_ID"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.approleid
+        - name: "VAULT_ADDR"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-services-config
+              key: suite.vault_addr
+        - name: "BVD_IDM_INTEGRATION_USER"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-services-config
+              key: suite.integration_user
+        - name: "BVD_IDM_INTEGRATION_USER_PASSWORD_KEY"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-services-config
+              key: suite.integration_user_password_key
+        - name: "IDM_ORGANIZATION"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-services-config
+              key: suite.idm_organization
+        - name: "IDM_EXTERNAL_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-services-config
+              key: suite.idm_external_url
+        - name: "IDM_ADDR"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-services-config
+              key: suite.idm_addr
+        - name: "EXTERNALNAME"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.externalname
+        - name: "EXTERNALPORT"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.externalport
+        volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/boostport.com
+          - name: bvd-controller-var
+            mountPath: /var/bvd
+            subPath: bvd/var/bvd
+          {{ include "bvd.tlsTrustStore" (dict "args" "volumeMounts" "Values" .Values) }}
+          {{ include "bvd.globalTlsTrustStore" (dict "args" "volumeMounts" "Values" .Values) }}
+          {{ include "bvd.oracleWallet" (dict "args" "volumeMounts" "Values" .Values) }}
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.bvd.image }}:{{ .Values.bvd.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        securityContext:
+          runAsNonRoot: true
+          procMount: Default
+      terminationGracePeriodSeconds: 120
+      containers:
+      - name: bvd-controller
+        args:
+        - controller
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.bvd.image }}:{{ .Values.bvd.imageTag }}
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - bash
+              - -c
+              - "kill -SIGTERM `ps -ef | grep -m 1 /bin/node | awk '{print $2}'`"
+        livenessProbe:
+          httpGet:
+            path: /docker/alive
+            port: 4000
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          timeoutSeconds: 10
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 10
+        resources:
+          requests:
+            cpu: {{ .Values.bvd.controller.resources.requests.cpu }}
+            memory: {{ .Values.bvd.controller.resources.requests.memory }}
+          limits:
+            memory: {{ .Values.bvd.controller.resources.limits.memory }}
+            cpu: {{ .Values.bvd.controller.resources.limits.cpu }}
+        ports:
+        - containerPort: 4000
+          protocol: TCP
+        env:
+        - name: BVD_ADMIN_LOGIN_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.adminname.key
+        - name: BVD_ADMIN_PASSWORD_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.adminpassword.key
+        - name: BVD_API_KEY_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.apikey.key
+        - name: DEBUG
+          value: {{ .Values.params.debug | default "bvd:error*,bvd:audit*" | quote }}
+        - name: SYSTEM_USER_ID
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.systemUID
+        - name: SYSTEM_GROUP_ID
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.systemGID
+        - name: REDIS_PWD_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.redispassword.key
+        - name: "BVD_DB_USER"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbuser
+        - name: "POSTGRES_PASSWORD_KEY"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbpassword.key
+        - name: "BVD_DB_HOST"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbhost
+        - name: "BVD_DB_PORT"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbport
+        - name: "BVD_DB_NAME"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbname
+        - name: "BVD_DB_SID"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbsid
+        - name: "BVD_DB_TYPE"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbType
+        - name: "BVD_DB_CONNECTION_STRING"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbConnectionString
+        - name: "BVD_DB_CA_BASE64_KEY"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbCa.base64.key
+        - name: "BVD_DB_CA_BASE64"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbCa.base64
+        - name: "BVD_DB_USE_TLS"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.dbUseTLS
+        - name: "BVD_USE_TLS"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.UseTLS
+        - name: "COLLECT_PROMETHEUS_METRICS"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.collectPrometheusMetrics
+        - name: "NAMESPACE"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-services-config
+              key: suite.namespace
+        - name: "APPROLE"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.approle
+        - name: "ROLE_ID"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.approleid
+        - name: "VAULT_ADDR"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-services-config
+              key: suite.vault_addr
+        - name: "BVD_IDM_INTEGRATION_USER"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-services-config
+              key: suite.integration_user
+        - name: "BVD_IDM_INTEGRATION_USER_PASSWORD_KEY"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-services-config
+              key: suite.integration_user_password_key
+        - name: "IDM_ORGANIZATION"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-services-config
+              key: suite.idm_organization
+        - name: "IDM_EXTERNAL_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-services-config
+              key: suite.idm_external_url
+        - name: "IDM_ADDR"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-services-config
+              key: suite.idm_addr
+        - name: "EXTERNALNAME"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.externalname
+        - name: "EXTERNALPORT"
+          valueFrom:
+            configMapKeyRef:
+              name: bvd-config
+              key: bvd.externalport
+        volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/boostport.com
+          {{ include "bvd.certificateSecret" (dict "args" "volumeMounts" "Values" .Values) }}
+          {{ include "bvd.tlsTrustStore" (dict "args" "volumeMounts" "Values" .Values) }}
+          {{ include "bvd.globalTlsTrustStore" (dict "args" "volumeMounts" "Values" .Values) }}
+          {{ include "bvd.oracleWallet" (dict "args" "volumeMounts" "Values" .Values) }}
+      - name: kubernetes-vault-renew
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/boostport.com
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.securityContext.user | int64 }}
+          runAsGroup: {{ .Values.global.securityContext.fsGroup | int64 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.global.securityContext.user | int64 }}
+        runAsGroup: {{ .Values.global.securityContext.fsGroup | int64 }}
+        fsGroup: {{ .Values.global.securityContext.fsGroup | int64 }}
+      {{- with ( coalesce .Values.global.nodeSelector .Values.nodeSelector ) }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      volumes:
+      - name: vault-token
+        emptyDir: {}
+      {{ include "bvd.certificateSecret" (dict "args" "volumes" "Values" .Values) }}
+      {{ include "bvd.tlsTrustStore" (dict "args" "volumes" "Values" .Values) }}
+      {{ include "bvd.globalTlsTrustStore" (dict "args" "volumes" "Values" .Values) }}
+      {{ include "bvd.oracleWallet" (dict "args" "volumes" "Values" .Values) }}
+      - name: bvd-controller-var
+      {{- include "helm-lib.pvcStorage" (dict "claim" "configVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}

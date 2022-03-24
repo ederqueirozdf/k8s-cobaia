@@ -1,0 +1,162 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: itom-nom-ui
+  labels:
+    name: itom-nom-ui
+  annotations:
+    deployment.microfocus.com/default-replica-count: {{ .Values.deployment.replicas | quote }}
+    deployment.microfocus.com/runlevel: UP
+spec:
+  selector:
+    matchLabels:
+      name: itom-nom-ui
+  replicas: {{ .Values.deployment.replicas }}
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: itom-nom-ui
+      annotations:
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ required "Required value not defined: vaultAppRole" .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        pod.boostport.com/vault-init-container: install
+    spec:
+      serviceAccountName: nom-ui
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.global.securityContext.user }}
+        runAsGroup: {{ .Values.global.securityContext.fsGroup }}
+        fsGroup: {{ .Values.global.securityContext.fsGroup }}
+      terminationGracePeriodSeconds: 300
+      initContainers:
+      {{- include "helm-lib.waitForVault" . | nindent 6 }}
+      {{ $bvdHost := .Values.deployment.bvdExplore.service }}
+      {{ $bvdPort := .Values.deployment.bvdExplore.port }}
+      {{- include "helm-lib.waitFor" (dict "service" $bvdHost "port" $bvdPort "Values" .Values) | nindent 6 }}
+      {{ $idmHost := include "helm-lib.getInternalIdmHost" . | default (printf "%s%s" .Values.deployment.idm.namePrefix .Values.deployment.idm.service) }}
+      {{ $idmPort := include "helm-lib.getInternalIdmPort" . | default .Values.deployment.idm.port }}
+      {{ if not (eq $idmHost $bvdHost) }}
+      {{- include "helm-lib.waitFor" (dict "service" $idmHost "port" $idmPort "Values" .Values) | nindent 6 }}
+      {{ end }}
+
+      - name: install
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+        env:
+        {{- if .Values.global.vaultAppRole }}
+        - name: VAULT_ROLE_ID
+          value: {{ required "Required value not defined: vaultRoleId" .Values.global.vaultRoleId }}
+        {{- end }}
+        - name: CERT_COMMON_NAME
+          value: itom-nom-ui
+        volumeMounts:
+        - mountPath: /var/run/secrets/boostport.com
+          name: vault-token
+      containers:
+      - name: itom-nom-ui
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.nomUi.image }}:{{ .Values.nomUi.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        ports:
+        - containerPort: 8443
+        livenessProbe:
+          httpGet:
+            path: /health/
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: 660
+          periodSeconds: 60
+          timeoutSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /health/
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: 60
+          timeoutSeconds: 15
+          periodSeconds: 30
+          failureThreshold: 20
+        resources:
+          limits:
+            cpu: "2"
+            memory: "2048Mi"
+          requests:
+            cpu: "100m"
+            memory: "500Mi"
+        securityContext:
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["CHOWN", "DAC_OVERRIDE", "FSETID", "FOWNER", "MKNOD", "SETGID", "SETUID", "SETFCAP", "SETPCAP", "NET_BIND_SERVICE", "SYS_CHROOT", "KILL", "AUDIT_WRITE", "NET_RAW"]
+        env:
+        - name: INTEGRATION_ADMIN_USER_KEY
+          value: {{ .Values.adminUser | quote }}
+        - name: INTEGRATION_ADMIN_PASSWORD_VAULT_KEY
+          value: {{ .Values.adminUserPasswordKey | quote }}
+        - name: isCoso
+          value: {{ .Values.global.coso.isSelected | quote }}
+        {{- if .Values.global.perfTroubleshooting.isSelected }}
+        - name: PERF_DATASOURCE
+          {{- include "helm-lib.injectVar" (dict "varName" "perfTroubleshooting.datasource" "Values" .Values "Template" .Template) | nindent 10 }}
+        {{- end }}
+        - name: isEpr
+          value: {{ .Values.global.isEpr | quote }}
+        - name: NOM_CERTIFICATES_DIR
+          value: "/var/opt/nom/certificates"
+        - name: FQDN
+          value: {{ .Values.global.externalAccessHost | quote }}
+        - name: NOM_UI_HTTPS_PORT
+          value: "8443"
+
+        volumeMounts:
+        - name: ui-data-vol
+          mountPath: /var/opt/OV
+          subPath: ui-app
+        - name: ui-log-vol
+          mountPath: /var/opt/OV/log
+          subPath: ui-app
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+        - name: temp
+          mountPath: /tmp
+        - name: bvd-explore-var
+          mountPath: /var/bvd
+          subPath: bvd/var/bvd
+      - name: kubernetes-vault-renew
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        volumeMounts:
+        - name: vault-token
+          mountPath: /var/run/secrets/boostport.com
+      restartPolicy: Always
+      volumes:
+      - name: ui-conf-vol
+        {{- include "helm-lib.pvcStorage" (dict "claim" "configVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      - name: ui-data-vol
+        {{- include "helm-lib.pvcStorage" (dict "claim" "dataVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      - name: ui-log-vol
+        {{- include "helm-lib.pvcStorage" (dict "claim" "logVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      - name: bvd-explore-var
+        {{- include "helm-lib.pvcStorage" (dict "claim" "configVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      - name: vault-token
+        emptyDir: {}
+      - name: temp
+        emptyDir: {}

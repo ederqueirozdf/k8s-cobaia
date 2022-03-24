@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bvd-ap-bridge
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    deployment.microfocus.com/default-replica-count: "1"
+    deployment.microfocus.com/runlevel: UP
+  labels:
+    service: bvd-ap-bridge
+    app.kubernetes.io/name: bvd-ap-bridge
+    app.kubernetes.io/managed-by: bvd-config
+    app.kubernetes.io/version: {{ .Values.bvd.imageTag }}
+    itom.microfocus.com/capability: bvd  
+    tier.itom.microfocus.com/middleware: middleware 
+spec:
+  replicas: {{ .Values.autopassBridge.replicaCount }}
+  selector:
+    matchLabels:
+      service: bvd-ap-bridge
+      itom.microfocus.com/capability: bvd
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        service: bvd-ap-bridge
+        itom.microfocus.com/capability: bvd
+      annotations:
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        pod.boostport.com/vault-init-container: install
+    spec:
+      serviceAccount: {{ .Values.deployment.rbac.serviceAccount }}
+      serviceAccountName: {{ .Values.deployment.rbac.serviceAccount }}
+      initContainers:
+      {{- include "helm-lib.waitFor" (dict "service" "bvd-controller" "port" 4000 "Values" .Values "addSecurityContext" true) | nindent 6 }}
+      - name: install
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+        env:
+        {{- if .Values.global.vaultAppRole }}
+        - name: "VAULT_ROLE_ID"
+          value: {{ .Values.global.vaultRoleId }}
+        {{- end }}
+        volumeMounts:
+        - name: "vault-token"
+          mountPath: /var/run/secrets/boostport.com
+      containers:
+      - image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.autopassBridge.image }}:{{ .Values.autopassBridge.imageTag }}
+        name: bvd-ap-bridge
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources:
+          requests:
+            cpu: {{ .Values.autopassBridge.resources.requests.cpu }}
+            memory: {{ .Values.autopassBridge.resources.requests.memory }}
+          limits:
+            memory: {{ .Values.autopassBridge.resources.limits.memory }}
+            cpu: {{ .Values.autopassBridge.resources.limits.cpu }}
+        volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/boostport.com
+        env:
+          - name: "APLMS_DOMAIN_NAME"
+            valueFrom:
+              configMapKeyRef:
+                name: bvd-services-config
+                key: suite.autopasslicenseserver
+      - name: kubernetes-vault-renew
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultRenew.image }}:{{ .Values.global.vaultRenew.imageTag }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/boostport.com
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.global.securityContext.user | int64 }}
+        runAsGroup: {{ .Values.global.securityContext.fsGroup | int64 }}
+        fsGroup: {{ .Values.global.securityContext.fsGroup | int64 }}
+      restartPolicy: Always
+
+      {{- with ( coalesce .Values.global.nodeSelector .Values.nodeSelector ) }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+ 
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+ 
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      volumes:
+        - name: vault-token
+          emptyDir: {}

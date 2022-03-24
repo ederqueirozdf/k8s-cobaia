@@ -1,0 +1,164 @@
+# Consuming charts can declare a namePrefix which will cause all names (service names, deployment names, etc.)
+# to be prefixed with the specified value, instead of default "itom" prefix.  This enables multiple
+# instances of the chart in a single namespace.
+namePrefix:
+
+# Consuming charts can declare they want backwards-compatible service name, i.e. prefixed with Helm "Release.Name".
+backwardsCompatServiceName: false
+
+global:
+  docker:
+    registry: localhost:5000
+    orgName: hpeswitom
+    imagePullSecret: ""
+    imagePullPolicy: IfNotPresent
+
+  nginx:
+    # Provide the NGINX annotation prefix used in the ingress resources - default: ingress.kubernetes.io
+    annotationPrefix:
+
+  # User ID and group ID to run as
+  securityContext:
+    user: 1999
+    fsGroup: 1999
+    disable: "false"
+
+  setFqdnInIngress: true
+
+  # persistence.enabled=true means that the PVCs are expected to be dynamically created by the composition chart.
+  # Otherwise, persistence.dataVolumeClaim is a persistent volume claim for storing data files.
+  # persistence.configVolumeClaim is a persistent volume claim for storing log files.
+  # persistence.logVolumeClaim is a persistent volume claim for storing log files.
+  # If all of the above are undefined, then temporary ephemeral storage will be created (only if isDemo=true)
+  persistence:
+    enabled: false
+    configVolumeClaim:
+    dataVolumeClaim:
+    logVolumeClaim:
+
+  # if isDemo is true, this will allow use of ephemeral storage and other POC aspects.
+  isDemo: false
+
+  enableFIPS: false
+
+  idm:
+    # IDM tenant - default: provider (IDM chart default)
+    tenant:
+
+    # IDM signing key - default: VAULT_SIGNING_KEY (IDM chart default)
+    signingKeySecretName:
+
+    # IDM url is automatically constructed
+    idmAuthUrl: "https://{{ .Values.global.externalAccessHost }}:{{ .Values.global.externalAccessPort }}/idm-service"
+
+    # IDM transport admin - default: transport_admin (hardcoded value in IDM chart)
+    idmTransportUser:
+
+    # Secret name that holds the pass for IDM transport admin user - default: idm_transport_admin_password (hardcoded value in IDM container)
+    idmTransportPasswordKey:
+
+    # ServiceUrl will be used to validate the IDM Tokens, Autopass will default service URL to AuthUrl If not passed
+    idmServiceUrl:
+
+  # REQUIRED: The externalAccessHost is the end-point for the service
+  externalAccessHost: autopass.integraecom.com
+  # The externalAccessPort defaults to 443
+  externalAccessPort: 443
+
+  # assume internal DB for CI/CD, composition chart can override if external.
+  database:
+    internal: true
+
+  # The global.rbac.* parameters trigger the creation of a Service Account, Role and RoleBinding used by this chart
+  # - If global.rbac.* = true, then the service chart creates all the required RBAC resources
+  # - If global.rbac.* = false, then you must create the service account, roles and bindings before deploying the chart
+  #   and provide the name of the SA at parameter deployment.rbac.serviceAccount
+  # - If global.rbac.serviceAccountCreate=true and global.rbac.roleCreate=false, then you must create the Role upfront
+  #   with the permissions defined in the apls-rbac.yaml file, and bind it to the SA created by this chart - unless
+  #   a custom name is provided at parameter deployment.rbac.serviceAccount, the default name is: 'itom-autopass-lms'
+  # - If global.rbac.serviceAccountCreate=false and global.rbac.roleCreate=true, then you must create the SA upfront and
+  #   provide the name at parameter deployment.rbac.serviceAccount
+  rbac:
+    serviceAccountCreate: true
+    roleCreate: true
+
+  # Global image references
+  vaultRenew:
+    image: kubernetes-vault-renew
+    imageTag: 0.9.0-006
+  vaultInit:
+    image: kubernetes-vault-init
+    imageTag: 0.9.0-006
+  busybox:
+    image: itom-busybox
+    imageTag: 1.29.0-005
+  opensuse:
+    image: opensuse-base
+    imageTag: 15.3
+  certs:
+    ls_server_cert: server.crt
+    ls_server_key: server.key
+
+  # Assign APLS pod to cluster nodes
+  # - if Values.nodeSelector -> use Values.nodeSelector
+  #   else if .global.nodeSelector -> use Values.global.nodeSelector
+  #   else do not set nodeSelectors in deployment yaml
+  nodeSelector: {}
+
+deployment:
+  # Deployment (subchart) specific values for DB parameters.  But all should be empty values in this file.
+  database:
+    host:
+    port:
+    dbName:
+    user:
+    userPasswordKey:
+    createDb:
+    admin:
+    adminPasswordKey:
+
+  certs:
+    lsServerCert: server.crt
+    lsServerKey: server.key
+
+  multiTenant: false
+
+  idm:
+    enableRbac:
+
+  # RBAC
+  rbac:
+    # See description at 'global.rbac' key index
+    # - default values for all three below: $namePrefix-autopass-lms
+    serviceAccount:
+
+  # Indicates the amount of AutoPass pods - default: 1
+  replicas:
+
+  # Custom ingress annotations - when provided, it will override the current ones defined in the ingress file
+  ingress:
+    annotations:
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# Assigning pods to cluster nodes
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+#####################
+# Image definitions
+#####################
+autopass:
+  image: itom-autopass-lms
+  imageTag: 12.2.0-2021101213

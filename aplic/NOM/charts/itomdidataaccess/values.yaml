@@ -1,0 +1,186 @@
+# Default values for dp.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+didataaccess:
+  config:
+    vertica:
+      ingestionServiceName: "itom-di-metadata-server-svc"
+      ingestionServicePort: "8443"
+      datasourceDriverClassName: "com.vertica.jdbc.Driver"
+      datasourceConnectionTimeout: "60000"
+      connection:
+        maxReconnectAttemptOnFailureDuringStartup: 200
+        timeDelayBetweenRetriesDuringStartup: 3000
+
+    dataaccess:
+      jvmArgs: "-Xms512m -Xmx1024m -XX:+HeapDumpOnOutOfMemoryError"
+      verticaIngestionTlsEnable: "true"
+      clientAuthEnable: "true"
+      apiClient:
+        authorizedClientCAs: ""
+      useExternalCASignedCerts: true
+      caSignedServerCertSecretName: integraecomcert
+      logConfigFromConfigmap: true
+
+    hikaricp:
+      connectionMaximumLifetime: "1800000"
+      idleSessionTimeOut: "3600s"
+      minimumIdleConnections: "2"
+      maximumPoolSize: "10"
+      connectionPoolName: "store_once_pool"
+
+    timezone: ""
+    replicaCount: 1
+    isNodePortEnabled: "true"
+    accessNodePort: "30003"
+
+  probe:
+    liveness:
+      enabled: true
+      initialDelaySeconds: 360
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 3
+      successThreshold: 1
+
+    readiness:
+      enabled: true
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 18
+      successThreshold: 1
+  topologySpreadConstraints:
+    enabled: true
+    maxSkew: 1
+    topologyKey: "topology.kubernetes.io/zone"
+    whenUnsatisfiable: ScheduleAnyway
+
+global:
+  cluster:
+    k8sProvider: cdf
+  di:
+    cloud:
+      externalDNS:
+        enabled: false
+      externalAccessHost:
+        dataAccess:
+    dataaccess:
+      resourcepool: ""
+    logging:
+      useFile:
+  # persistence.enabled=true means that the PVCs are expected to be dynamically created by the composition chart.
+  # Otherwise, persistence.configVolumeClaim is a persistent volume claim for storing configuration files.
+  # persistence.logVolumeClaim is a persistent volume claim for storing log files.
+  # If all of the above are undefined, then temporary ephemeral storage will be created (only if isDemo=true)
+  persistence:
+    enabled: false
+    configVolumeClaim:
+    logVolumeClaim:
+
+  # For custom client CAs. authorizedClientCAs should be the name of a configMap which contains the certs.
+  apiClient:
+    authorizedClientCAs:
+
+  #For nginx custom CA signed certificates. secretName should be the name of the secret containing the cert and key
+  nginx:
+    secretName:
+
+  # RBAC 
+  rbac:
+    serviceAccountCreate: true
+    roleCreate: true
+
+  nodeSelector: {}
+
+  # For custom server CAs (incl. for Vertica). tlsTruststore should be the name of a configMap which contains the certs.
+  tlsTruststore:
+
+  # if isDemo is true, this will allow use of ephemeral storage and other POC aspects.
+  isDemo: false
+
+  # This Kafka chart depends on Zookeeper.  And by default it will deploy a new Zookeeper
+  # instance each time this chart is deployed.
+  # If instance.zookeeper is defined, then Kafka will reuse a Zookeeper instance which
+  # is already running, instead of deploying a new instance.
+  # The value of instance.zookeeper should match the Helm Release Name (i.e. "cold-fish")
+  # associated with the ZooKeeper instance to be reused.
+  instance:
+    kafka:
+
+  #All vertica related details are being moved into global so that it can be used across charts
+  # rwuser: Read Write vertica User
+  # rouser: Read Only user. Used only by Data Access
+  # rwuserkey: Password for Read Write vertica user
+  # rouserkey: password for Read only vertica user
+  vertica:
+    embedded: false
+    host: 
+    rwuser: 
+    rwuserkey: ITOMDI_DBA_PASSWORD_KEY
+    rouser: 
+    rouserkey: ITOMDI_DBA_PASSWORD_KEY
+    db: 
+    port: 
+    tlsEnabled: "false"
+
+  docker:
+    # set the global.docker.registry and orgName to your internal Docker registry/org
+    registry: localhost:5000
+    orgName: hpeswitom
+    imagePullSecret: ""
+    imagePullPolicy: IfNotPresent
+
+  securityContext:
+    user: "1999"
+    group: "1999"
+    fsGroup: "1999"
+
+  # Global image references
+  vaultRenew:
+    image: kubernetes-vault-renew
+    imageTag: 0.10.0-0019
+  vaultInit:
+    image: kubernetes-vault-init
+    imageTag: 0.10.0-0019
+  busybox:
+    image: itom-busybox
+    imageTag: 1.32.0-006
+
+  loadBalancer:
+    ip:
+    sourceRanges:
+    
+resources:
+  limits:
+    cpu: "1"
+    memory: "2048Mi"
+  requests:
+    cpu: "0.2"
+    memory: "512Mi"
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: "app"
+                operator: In
+                values:
+                  - itom-di-data-access
+          topologyKey: "kubernetes.io/hostname"
+
+nodeSelector: {}
+deployment:
+  rbac:
+    serviceAccount: ""
+
+#####################
+# Image definitions
+####################
+
+dataAccess:
+  image: itom-data-ingestion-data-access
+  imageTag: 2.5.0-34

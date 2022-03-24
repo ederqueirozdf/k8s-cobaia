@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: itom-di-data-access-cm
+data:
+  dataaccess.jvm.args: {{ .Values.didataaccess.config.dataaccess.jvmArgs }}
+  vertica.ingestion.service.name: {{ .Values.didataaccess.config.vertica.ingestionServiceName }}
+  vertica.ingestion.service.port: {{ .Values.didataaccess.config.vertica.ingestionServicePort | quote }}
+  vertica.datasource.driver-class-name: {{ .Values.didataaccess.config.vertica.datasourceDriverClassName }}
+  vertica.datasource.username: {{ template "vertica.rouser" .}}
+  vertica.datasource.connection-timeout: {{ .Values.didataaccess.config.vertica.datasourceConnectionTimeout | quote }}
+  dataaccess.resource-pool: {{ .Values.global.di.dataaccess.resourcepool | default "GENERAL" | quote }}
+  vertica.datasource.hostname: {{ template "vertica.host" .}}
+  vertica.datasource.port: {{ template "vertica.port" .}}
+  vertica.datasource.databasename: {{ template "vertica.db" .}}
+  vertica.connection.max-reconnect-attempt-on-failure-during-startup: {{ .Values.didataaccess.config.vertica.connection.maxReconnectAttemptOnFailureDuringStartup | quote }}
+  vertica.connection.time-delay-between-retries-during-startup: {{ .Values.didataaccess.config.vertica.connection.timeDelayBetweenRetriesDuringStartup | quote }}
+  dataaccess.client.auth.enable: {{ .Values.didataaccess.config.dataaccess.clientAuthEnable | quote }}
+  dataaccess.use.external.ca.signed.certs: {{ .Values.didataaccess.config.dataaccess.useExternalCASignedCerts | quote }}
+  vertica.datasource.password.key: {{ .Values.global.vertica.rouserkey | quote}}
+  dataaccess.vertica.ingestion.tls.enable: {{ .Values.didataaccess.config.dataaccess.verticaIngestionTlsEnable | quote }}
+  dataaccess.vertica.ssl.enable: {{ .Values.global.vertica.tlsEnabled | quote }}
+  hikaricp.connection.maximum.lifetime: {{ .Values.didataaccess.config.hikaricp.connectionMaximumLifetime | quote }}
+  hikaricp.minimum.idle.connections: {{ .Values.didataaccess.config.hikaricp.minimumIdleConnections | quote }}
+  hikaricp.idle.session.timeout: {{ .Values.didataaccess.config.hikaricp.idleSessionTimeOut | default "3600s" | quote }}
+  hikaricp.maximum.pool.size: {{ .Values.didataaccess.config.hikaricp.maximumPoolSize | quote }}
+  hikaricp.connection.pool.name: {{ .Values.didataaccess.config.hikaricp.connectionPoolName }}
+  timezone: {{ .Values.didataaccess.config.timezone | quote }}
+
+  dataaccess.logconfig.from.configmap: {{ .Values.didataaccess.config.dataaccess.logConfigFromConfigmap | quote }}

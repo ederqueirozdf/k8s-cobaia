@@ -1,0 +1,95 @@
+{{- if .Values.deployment.uploadAutoPassLicense }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: apply-license-job-{{ randAlphaNum 7 | lower }}
+spec:
+  ttlSecondsAfterFinished: {{ .Values.global.jobs.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        name: apply-license-job
+      annotations:
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        pod.boostport.com/vault-init-container: install
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.global.securityContext.user }}
+        runAsGroup: {{ .Values.global.securityContext.fsGroup }}
+        fsGroup: {{ .Values.global.securityContext.fsGroup }}
+      serviceAccountName: nom-core
+      restartPolicy: OnFailure
+      initContainers:
+      {{- include "helm-lib.waitForVault" . | nindent 6 }}
+
+      {{ $apHost := include "helm-lib.getAplsHost" . | default "itom-autopass-lms" }}
+      {{ $apPort := include "helm-lib.getAplsPort" . | default 5814 }}
+      {{- include "helm-lib.waitFor" (dict "service" $apHost "port" $apPort "Values" .Values) | nindent 6 }}
+
+      {{- $idmHost := include "helm-lib.getInternalIdmHost" . | default (printf "%s%s" .Values.deployment.idm.namePrefix .Values.deployment.idm.service)  -}}
+      {{- $idmPort := include "helm-lib.getInternalIdmPort" . | default 18443 -}}
+      {{ if not (eq $idmHost $apHost) }}
+      {{- include "helm-lib.waitFor" (dict "service" $idmHost "port" $idmPort "Values" .Values) | nindent 6 }}
+      {{ end }}
+
+      - name: install
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+        env:
+        {{- if .Values.global.vaultAppRole }}
+        - name: VAULT_ROLE_ID
+          value: {{ required "Required value not defined: vaultRoleId" .Values.global.vaultRoleId }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: /var/run/secrets/boostport.com
+          name: vault-token
+
+      containers:
+      - name: apply-license
+        image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.nomConfig.image }}:{{ .Values.nomConfig.imageTag }}
+        args: ["/tasks/license"]
+        env:
+        - name: APLS_SVC_NAME
+          value: {{ $apHost | quote }}
+        - name: APLS_SVC_PORT
+          value: {{ $apPort | quote }}
+        - name: PRODUCT_ID
+          value: "50039_2.0_NOM_2020.11"
+        - name: IDM_HOST
+          value: {{ $idmHost | quote }}
+        - name: IDM_PORT
+          value: {{ $idmPort | quote }}
+        - name: IDM_USER
+          value: {{ .Values.deployment.idm.user | quote }}
+        - name: IDM_PASSWORD_KEY
+          value: {{ .Values.deployment.idm.passwordKey | quote }}
+        imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+        volumeMounts:
+        - mountPath: /var/run/secrets/boostport.com
+          name: vault-token
+        - name: certs-volume
+          mountPath: /data/nom/certificates
+
+      volumes:
+      - name: vault-token
+        emptyDir: {}
+      {{- if .Values.global.tlsTruststore }}
+      - name: certs-volume
+        configMap:
+          name: {{ .Values.global.tlsTruststore }}
+      {{- end }}
+
+{{- else }}
+# we need to deploy SOMETHING, or else we get an error during "helm delete" due to empty file
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apply-license-job
+data:
+  skippedAutoPassUpload: "true"
+
+{{- end }}

@@ -1,0 +1,92 @@
+# Default values for vertica.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+divertica:
+  probe:
+    liveness:
+      enabled: true
+      initialDelaySeconds: 510
+      periodSeconds: 120
+      timeoutSeconds: 60
+      failureThreshold: 90000
+      successThreshold: 1
+
+    startup:
+      enabled: true
+      initialDelaySeconds: 125
+      periodSeconds: 120
+      timeoutSeconds: 60
+      failureThreshold: 18
+      successThreshold: 1
+
+  config:
+    #required field
+    passwordKey: ITOMDI_DBA_PASSWORD_KEY
+    tlsMode:  prefer
+    # Log rotate interval can be daily | weekly | monthly
+    logRotateInterval: daily
+    maxLogFiles: "10"
+    maxClientSession: "150"
+    replicaCount: 1
+    isNodePortEnabled: "true"
+    verticaNodePort: 30012
+
+
+global:
+  # persistence.dataVolumeClaim is a persistent volume claim for storing Kafka data files.
+  # If it is undefined, then temporary ephemeral storage will be created.
+  persistence:
+    enabled: false
+    dataVolumeClaim:
+    logVolumeClaim:
+
+  isDemo: false
+ # RBAC
+  rbac:
+    serviceAccountCreate: true
+    roleCreate: true
+    pspEnabled: false 
+
+  nodeSelector: {}
+
+  # set the global.docker.registry and orgName to your internal Docker registry/org
+  docker:
+    registry: localhost:5000
+    orgName: hpeswitom
+    imagePullSecret: ""
+    imagePullPolicy: IfNotPresent
+
+  securityContext:
+    user: "1999"
+    group: "1999"
+    fsGroup: "1999"
+
+  # Global image references
+  vaultRenew:
+    image: kubernetes-vault-renew
+    imageTag: 0.10.0-0019
+  vaultInit:
+    image: kubernetes-vault-init
+    imageTag: 0.10.0-0019
+  busybox:
+    image: itom-busybox
+    imageTag: 1.32.0-006
+
+nodeSelector: {}
+deployment:
+  rbac:
+    serviceAccount: ""
+
+resources:
+  limits:
+    cpu: "4"
+    memory: "8192Mi"
+  requests:
+    cpu: "1"
+    memory: "512Mi"
+#####################
+# Image definitions
+#####################
+verticaImage:
+  image: itom-vertica
+  imageTag: 10.1.1-7-14

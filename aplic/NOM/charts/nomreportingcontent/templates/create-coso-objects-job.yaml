@@ -1,0 +1,383 @@
+{{- if .Values.global.coso.isSelected }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-coso-objects-job-{{ randAlphaNum 7 | lower }}
+spec:
+  ttlSecondsAfterFinished: {{ .Values.global.jobs.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        name: create-coso-objects-job
+      annotations:
+        {{- if .Values.global.vaultAppRole }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-{{ .Values.global.vaultAppRole }}
+        {{- else }}
+        pod.boostport.com/vault-approle: {{ .Release.Namespace }}-default
+        {{- end }}
+        pod.boostport.com/vault-init-container: install
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.global.securityContext.user }}
+        runAsGroup: {{ .Values.global.securityContext.fsGroup }}
+        fsGroup: {{ .Values.global.securityContext.fsGroup }}
+      serviceAccountName: itom-nom-reporting
+      {{- if ne .Values.global.docker.imagePullSecret "" }}
+      imagePullSecrets:
+      - name: {{ .Values.global.docker.imagePullSecret }}
+      {{- end }}
+      restartPolicy: OnFailure
+      initContainers:
+        {{- include "helm-lib.waitForVault" . | nindent 8 }}
+        {{- $diAdminHost := include "helm-lib.getDiAdminHost" . | default .Values.coso.diAdminSvc.host -}}
+        {{- $diAdminPort := include "helm-lib.getDiAdminPort" . | default .Values.coso.diAdminSvc.port -}}
+        {{- include "helm-lib.waitFor" (dict "service" $diAdminHost "port" $diAdminPort "Values" .Values) | nindent 8 }}
+        {{- include "helm-lib.waitFor" (dict "service" "itom-nom-api-server" "port" "8443" "Values" .Values) | nindent 8 }}
+
+        {{ $idmHost := include "helm-lib.getInternalIdmHost" . | default (printf "%s%s" .Values.deployment.idm.namePrefix .Values.deployment.idm.service) }}
+        {{ $idmPort := include "helm-lib.getInternalIdmPort" . | default .Values.deployment.idm.port }}
+
+        - name: install
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.global.vaultInit.image }}:{{ .Values.global.vaultInit.imageTag }}
+          env:
+            {{- if .Values.global.vaultAppRole }}
+            - name: VAULT_ROLE_ID
+              value: {{ required "Required value not defined: vaultRoleId" .Values.global.vaultRoleId }}
+            {{- end }}
+          volumeMounts:
+            - mountPath: /var/run/secrets/boostport.com
+              name: vault-token
+ 
+        - name: create-coso-objects-prereqs
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.nomConfig.image }}:{{ .Values.nomConfig.imageTag }}
+          args: ["/tasks/coso"]
+          env:
+            - name: DI_ADMIN_SVC_HOST
+              value: "itom-nom-api-server"
+            - name: DI_ADMIN_SVC_PORT
+              value: "8443"
+            - name: IDP_HOST
+              value: {{ $idmHost | quote }}
+            - name: IDP_PORT
+              value: {{ $idmPort | quote }}
+            - name: IDP_USER
+              value: "{{ .Values.deployment.idm.user }}"
+            - name: IDP_PASSWORD_KEY
+              value: "{{ .Values.deployment.idm.passwordKey }}"
+            - name: LOG_FILE_NAME
+              value: "log/create-coso-objects-prereqs-%u.%g.log"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: LOG_FILE_MAX_SIZE
+              value: "0"
+            - name: LOG_ROLLUP_COUNT
+              value: "1"
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          volumeMounts:
+            - mountPath: /var/run/secrets/boostport.com
+              name: vault-token
+            - mountPath: /data/nom/certificates
+              name: certs-volume
+            - mountPath: /data
+              name: data-volume
+            - mountPath: /log
+              name: log-volume
+              subPath: create-coso-objects
+
+        {{- if .Values.global.nnmi.isSelected }}
+        - name: create-coso-objects-nnm
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.nomConfig.image }}:{{ .Values.nomConfig.imageTag }}
+          args: ["/tasks/coso/nnm"]
+          env:
+            - name: DI_ADMIN_SVC_HOST
+              value: "itom-nom-api-server"
+            - name: DI_ADMIN_SVC_PORT
+              value: "8443"
+            - name: IDP_HOST
+              value: {{ $idmHost | quote }}
+            - name: IDP_PORT
+              value: {{ $idmPort | quote }}
+            - name: IDP_USER
+              value: "{{ .Values.deployment.idm.user }}"
+            - name: IDP_PASSWORD_KEY
+              value: "{{ .Values.deployment.idm.passwordKey }}"
+            - name: KAFKA_SVC_NAME
+              value: "itomdipulsar-proxy"
+            - name: KAFKA_SVC_PORT
+              value: "6651"
+            - name: KAFKA_REPLICAS
+              value: {{ .Values.deployment.kafkaReplicas | quote }}
+            - name: LOG_FILE_NAME
+              value: "log/create-coso-objects-nnm-%u.%g.log"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: LOG_FILE_MAX_SIZE
+              value: "0"
+            - name: LOG_ROLLUP_COUNT
+              value: "1"
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          volumeMounts:
+            - mountPath: /var/run/secrets/boostport.com
+              name: vault-token
+            - mountPath: /data/nom/certificates
+              name: certs-volume
+            - mountPath: /data
+              name: data-volume
+            - mountPath: /log
+              name: log-volume
+              subPath: create-coso-objects
+        {{- end }}
+
+        {{- if .Values.global.na.isSelected }}
+        - name: create-coso-objects-na
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.nomConfig.image }}:{{ .Values.nomConfig.imageTag }}
+          args: ["/tasks/coso/na"]
+          env:
+            - name: DI_ADMIN_SVC_HOST
+              value: "itom-nom-api-server"
+            - name: DI_ADMIN_SVC_PORT
+              value: "8443"
+            - name: IDP_HOST
+              value: {{ $idmHost | quote }}
+            - name: IDP_PORT
+              value: {{ $idmPort | quote }}
+            - name: IDP_USER
+              value: "{{ .Values.deployment.idm.user }}"
+            - name: IDP_PASSWORD_KEY
+              value: "{{ .Values.deployment.idm.passwordKey }}"
+            - name: LOG_FILE_NAME
+              value: "log/create-coso-objects-na-%u.%g.log"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: LOG_FILE_MAX_SIZE
+              value: "0"
+            - name: LOG_ROLLUP_COUNT
+              value: "1"
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          volumeMounts:
+            - mountPath: /var/run/secrets/boostport.com
+              name: vault-token
+            - mountPath: /data/nom/certificates
+              name: certs-volume
+            - mountPath: /data
+              name: data-volume
+            - mountPath: /log
+              name: log-volume
+              subPath: create-coso-objects
+        {{- end }}
+
+        {{- if .Values.global.traffic.isSelected }}
+        - name: create-coso-objects-traffic
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.nomConfig.image }}:{{ .Values.nomConfig.imageTag }}
+          args: ["/tasks/coso/traffic"]
+          env:
+            - name: DI_ADMIN_SVC_HOST
+              value: "itom-nom-api-server"
+            - name: DI_ADMIN_SVC_PORT
+              value: "8443"
+            - name: IDP_HOST
+              value: {{ $idmHost | quote }}
+            - name: IDP_PORT
+              value: {{ $idmPort | quote }}
+            - name: IDP_USER
+              value: "{{ .Values.deployment.idm.user }}"
+            - name: IDP_PASSWORD_KEY
+              value: "{{ .Values.deployment.idm.passwordKey }}"
+            - name: LOG_FILE_NAME
+              value: "log/create-coso-objects-traffic-%u.%g.log"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: LOG_FILE_MAX_SIZE
+              value: "0"
+            - name: LOG_ROLLUP_COUNT
+              value: "1"
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          volumeMounts:
+            - mountPath: /var/run/secrets/boostport.com
+              name: vault-token
+            - mountPath: /data
+              name: data-volume
+            - mountPath: /log
+              name: log-volume
+              subPath: create-coso-objects
+        {{- end }}
+
+        {{- if .Values.global.qa.isSelected }}
+        - name: create-coso-objects-qa
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.nomConfig.image }}:{{ .Values.nomConfig.imageTag }}
+          args: ["/tasks/coso/qa"]
+          env:
+            - name: DI_ADMIN_SVC_HOST
+              value: "itom-nom-api-server"
+            - name: DI_ADMIN_SVC_PORT
+              value: "8443"
+            - name: IDP_HOST
+              value: {{ $idmHost | quote }}
+            - name: IDP_PORT
+              value: {{ $idmPort | quote }}
+            - name: IDP_USER
+              value: "{{ .Values.deployment.idm.user }}"
+            - name: IDP_PASSWORD_KEY
+              value: "{{ .Values.deployment.idm.passwordKey }}"
+            - name: LOG_FILE_NAME
+              value: "log/create-coso-objects-qa-%u.%g.log"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: LOG_FILE_MAX_SIZE
+              value: "0"
+            - name: LOG_ROLLUP_COUNT
+              value: "1"
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          volumeMounts:
+            - mountPath: /var/run/secrets/boostport.com
+              name: vault-token
+            - mountPath: /data
+              name: data-volume
+            - mountPath: /log
+              name: log-volume
+              subPath: create-coso-objects
+        {{- end }}
+
+        {{- if .Values.global.multicast.isSelected }}
+        - name: create-coso-objects-mcast
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.nomConfig.image }}:{{ .Values.nomConfig.imageTag }}
+          args: ["/tasks/coso/mcast"]
+          env:
+            - name: DI_ADMIN_SVC_HOST
+              value: "itom-nom-api-server"
+            - name: DI_ADMIN_SVC_PORT
+              value: "8443"
+            - name: IDP_HOST
+              value: {{ $idmHost | quote }}
+            - name: IDP_PORT
+              value: {{ $idmPort | quote }}
+            - name: IDP_USER
+              value: "{{ .Values.deployment.idm.user }}"
+            - name: IDP_PASSWORD_KEY
+              value: "{{ .Values.deployment.idm.passwordKey }}"
+            - name: LOG_FILE_NAME
+              value: "log/create-coso-objects-mcast-%u.%g.log"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: LOG_FILE_MAX_SIZE
+              value: "0"
+            - name: LOG_ROLLUP_COUNT
+              value: "1"
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          volumeMounts:
+            - mountPath: /var/run/secrets/boostport.com
+              name: vault-token
+            - mountPath: /data
+              name: data-volume
+            - mountPath: /log
+              name: log-volume
+              subPath: create-coso-objects
+        {{- end }}
+
+        {{- if .Values.global.mpls.isSelected }}
+        - name: create-coso-objects-mpls
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.nomConfig.image }}:{{ .Values.nomConfig.imageTag }}
+          args: ["/tasks/coso/mpls"]
+          env:
+            - name: DI_ADMIN_SVC_HOST
+              value: "itom-nom-api-server"
+            - name: DI_ADMIN_SVC_PORT
+              value: "8443"
+            - name: IDP_HOST
+              value: {{ $idmHost | quote }}
+            - name: IDP_PORT
+              value: {{ $idmPort | quote }}
+            - name: IDP_USER
+              value: "{{ .Values.deployment.idm.user }}"
+            - name: IDP_PASSWORD_KEY
+              value: "{{ .Values.deployment.idm.passwordKey }}"
+            - name: LOG_FILE_NAME
+              value: "log/create-coso-objects-mpls-%u.%g.log"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: LOG_FILE_MAX_SIZE
+              value: "0"
+            - name: LOG_ROLLUP_COUNT
+              value: "1"
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          volumeMounts:
+             - mountPath: /var/run/secrets/boostport.com
+               name: vault-token
+             - mountPath: /data
+               name: data-volume
+             - mountPath: /log
+               name: log-volume
+               subPath: create-coso-objects
+        {{- end }}
+
+        {{- if .Values.global.ipt.isSelected }}
+        - name: create-coso-objects-ipt
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.nomConfig.image }}:{{ .Values.nomConfig.imageTag }}
+          args: ["/tasks/coso/ipt"]
+          env:
+            - name: DI_ADMIN_SVC_HOST
+              value: "itom-nom-api-server"
+            - name: DI_ADMIN_SVC_PORT
+              value: "8443"
+            - name: IDP_HOST
+              value: {{ $idmHost | quote }}
+            - name: IDP_PORT
+              value: {{ $idmPort | quote }}
+            - name: IDP_USER
+              value: "{{ .Values.deployment.idm.user }}"
+            - name: IDP_PASSWORD_KEY
+              value: "{{ .Values.deployment.idm.passwordKey }}"
+            - name: LOG_FILE_NAME
+              value: "log/create-coso-objects-ipt-%u.%g.log"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: LOG_FILE_MAX_SIZE
+              value: "0"
+            - name: LOG_ROLLUP_COUNT
+              value: "1"
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          volumeMounts:
+            - mountPath: /var/run/secrets/boostport.com
+              name: vault-token
+            - mountPath: /data
+              name: data-volume
+            - mountPath: /log
+              name: log-volume
+              subPath: create-coso-objects
+        {{- end }}
+
+      containers:
+# This is a dummy container since all others are moved to init to serially execute them
+        - command:
+          - sh
+          - -c
+          - exit 0
+          image: {{ .Values.global.docker.registry }}/{{ .Values.global.docker.orgName }}/{{ .Values.nomConfig.image }}:{{ .Values.nomConfig.imageTag }}
+          imagePullPolicy: {{ .Values.global.docker.imagePullPolicy }}
+          name: dummy-container
+
+      volumes:
+      - name: vault-token
+        emptyDir: {}
+      - name: data-volume
+        {{- include "helm-lib.pvcStorage" (dict "claim" "dataVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      - name: log-volume
+        {{- include "helm-lib.pvcStorage" (dict "claim" "logVolumeClaim" "Release" .Release "Template" .Template "Values" .Values ) | nindent 8 }}
+      {{- if .Values.global.tlsTruststore }}
+      - name: certs-volume
+        configMap:
+          name: {{ .Values.global.tlsTruststore }}
+      {{- end }}
+
+{{- else }}
+# we need to deploy SOMETHING in this file, to prevent errors during "helm delete" of empty file
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: create-coso-objects-cm
+data:
+  bvd.isSelected: {{ .Values.global.bvd.isSelected | quote }}
+  coso.isSelected: {{ .Values.global.coso.isSelected | quote }}
+  perfTroubleshooting.isSelected: {{ .Values.global.perfTroubleshooting.isSelected | quote }}
+{{- end }}
