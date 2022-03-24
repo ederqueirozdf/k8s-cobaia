@@ -1,10 +1,10 @@
 clusterK8s:
-  name: "k8s-cobaia"
-  server: https://kubernetes.default.svc
+  name: "do-sfo3-k8s-lab"
+  server: $CLUSTER_URL_ARGO
   source: https://github.com/ederqueirozdf/k8s-cobaia.git
   extraApi: 
     - namespace: "*"
-      server: https://kubernetes.default.svc  
+      server: $CLUSTER_URL_ARGO 
 
 argocd:
   namespace: argocd
@@ -31,7 +31,7 @@ argocd:
           targetRevision: HEAD     
         destination:
           namespace: cobaia-guestbook
-          server: https://kubernetes.default.svc
+          server: $CLUSTER_URL_ARGO
         syncPolicy:
           automated:
             prune: true
@@ -41,90 +41,90 @@ argocd:
 # MONITOR
 # #####################################################################
 
-    - name: "thanos"
-      finalizers: []
-      labels: []
-        # - key: chave
-        #   value: valor
-      annotations: []
-        # - key: chave
-        #   value: valor
-      spec:
-        project: k8s-cobaia
-        source:
-          path: aplic/thanos
-          repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
-          targetRevision: HEAD 
-        destination:
-          namespace: cobaia-thanos
-          server: https://kubernetes.default.svc
-        syncPolicy:
-          automated:
-            prune: true
-            selfHeal: true
+    # - name: "thanos"
+    #   finalizers: []
+    #   labels: []
+    #     # - key: chave
+    #     #   value: valor
+    #   annotations: []
+    #     # - key: chave
+    #     #   value: valor
+    #   spec:
+    #     project: k8s-cobaia
+    #     source:
+    #       path: aplic/thanos
+    #       repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
+    #       targetRevision: HEAD 
+    #     destination:
+    #       namespace: cobaia-thanos
+    #       server: $CLUSTER_URL_ARGO
+    #     syncPolicy:
+    #       automated:
+    #         prune: true
+    #         selfHeal: true
 
-    - name: "prometheus-master-0"
-      finalizers: []
-      labels: []
-        # - key: chave
-        #   value: valor
-      annotations: []
-        # - key: chave
-        #   value: valor
-      spec:
-        project: k8s-cobaia
-        source:
-          path: aplic/prometheus-master-0
-          repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
-          targetRevision: HEAD 
-        destination:
-          namespace: cobaia-prometheus-master-0
-          server: https://kubernetes.default.svc
-        syncPolicy:
-          automated:
-            prune: true
-            selfHeal: true
+    # - name: "prometheus-master-0"
+    #   finalizers: []
+    #   labels: []
+    #     # - key: chave
+    #     #   value: valor
+    #   annotations: []
+    #     # - key: chave
+    #     #   value: valor
+    #   spec:
+    #     project: k8s-cobaia
+    #     source:
+    #       path: aplic/prometheus-master-0
+    #       repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
+    #       targetRevision: HEAD 
+    #     destination:
+    #       namespace: cobaia-prometheus-master-0
+    #       server: $CLUSTER_URL_ARGO
+    #     syncPolicy:
+    #       automated:
+    #         prune: true
+    #         selfHeal: true
 
-    - name: "minio"
-      finalizers: []
-      labels: []
-        # - key: chave
-        #   value: valor
-      annotations: []
-        # - key: chave
-        #   value: valor
-      spec:
-        project: k8s-cobaia
-        source:
-          path: aplic/minio
-          repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
-          targetRevision: HEAD 
-        destination:
-          namespace: cobaia-minio
-          server: https://kubernetes.default.svc
-        syncPolicy:
-          automated:
-            prune: true
-            selfHeal: true
+    # - name: "minio"
+    #   finalizers: []
+    #   labels: []
+    #     # - key: chave
+    #     #   value: valor
+    #   annotations: []
+    #     # - key: chave
+    #     #   value: valor
+    #   spec:
+    #     project: k8s-cobaia
+    #     source:
+    #       path: aplic/minio
+    #       repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
+    #       targetRevision: HEAD 
+    #     destination:
+    #       namespace: cobaia-minio
+    #       server: $CLUSTER_URL_ARGO
+    #     syncPolicy:
+    #       automated:
+    #         prune: true
+    #         selfHeal: true
 
-    - name: "velero"
-      finalizers: []
-      labels: []
-        # - key: chave
-        #   value: valor
-      annotations: []
-        # - key: chave
-        #   value: valor
-      spec:
-        project: k8s-cobaia
-        source:
-          path: aplic/velero
-          repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
-          targetRevision: HEAD 
-        destination:
-          namespace: cobaia-velero
-          server: https://kubernetes.default.svc
-        syncPolicy:
-          automated:
-            prune: true
-            selfHeal: true            
+    # - name: "velero"
+    #   finalizers: []
+    #   labels: []
+    #     # - key: chave
+    #     #   value: valor
+    #   annotations: []
+    #     # - key: chave
+    #     #   value: valor
+    #   spec:
+    #     project: k8s-cobaia
+    #     source:
+    #       path: aplic/velero
+    #       repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
+    #       targetRevision: HEAD 
+    #     destination:
+    #       namespace: cobaia-velero
+    #       server: $CLUSTER_URL_ARGO
+    #     syncPolicy:
+    #       automated:
+    #         prune: true
+    #         selfHeal: true            
