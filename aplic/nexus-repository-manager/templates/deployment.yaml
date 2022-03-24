@@ -81,26 +81,26 @@ spec:
               containerPort: {{ .port }}
             {{- end }}
             {{- end }}
-          livenessProbe:
-            httpGet:
-              path: {{ .Values.nexus.livenessProbe.path }}
-              port: {{ .Values.nexus.nexusPort }}
-            initialDelaySeconds: {{ .Values.nexus.livenessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.nexus.livenessProbe.periodSeconds }}
-            failureThreshold: {{ .Values.nexus.livenessProbe.failureThreshold }}
-            {{- if .Values.nexus.livenessProbe.timeoutSeconds }}
-            timeoutSeconds: {{ .Values.nexus.livenessProbe.timeoutSeconds }}
-            {{- end }}
-          readinessProbe:
-            httpGet:
-              path: {{ .Values.nexus.readinessProbe.path }}
-              port: {{ .Values.nexus.nexusPort }}
-            initialDelaySeconds: {{ .Values.nexus.readinessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.nexus.readinessProbe.periodSeconds }}
-            failureThreshold: {{ .Values.nexus.readinessProbe.failureThreshold }}
-            {{- if .Values.nexus.readinessProbe.timeoutSeconds }}
-            timeoutSeconds: {{ .Values.nexus.readinessProbe.timeoutSeconds }}
-            {{- end }}
+          # livenessProbe:
+          #   httpGet:
+          #     path: {{ .Values.nexus.livenessProbe.path }}
+          #     port: {{ .Values.nexus.nexusPort }}
+          #   initialDelaySeconds: {{ .Values.nexus.livenessProbe.initialDelaySeconds }}
+          #   periodSeconds: {{ .Values.nexus.livenessProbe.periodSeconds }}
+          #   failureThreshold: {{ .Values.nexus.livenessProbe.failureThreshold }}
+          #   {{- if .Values.nexus.livenessProbe.timeoutSeconds }}
+          #   timeoutSeconds: {{ .Values.nexus.livenessProbe.timeoutSeconds }}
+          #   {{- end }}
+          # readinessProbe:
+          #   httpGet:
+          #     path: {{ .Values.nexus.readinessProbe.path }}
+          #     port: {{ .Values.nexus.nexusPort }}
+          #   initialDelaySeconds: {{ .Values.nexus.readinessProbe.initialDelaySeconds }}
+          #   periodSeconds: {{ .Values.nexus.readinessProbe.periodSeconds }}
+          #   failureThreshold: {{ .Values.nexus.readinessProbe.failureThreshold }}
+          #   {{- if .Values.nexus.readinessProbe.timeoutSeconds }}
+          #   timeoutSeconds: {{ .Values.nexus.readinessProbe.timeoutSeconds }}
+          #   {{- end }}
           volumeMounts:
             - mountPath: /nexus-data	
               name: {{ template "nexus.name" . }}-data
