@@ -1,8 +1,0 @@
-apiVersion: v2
-appVersion: 1.4.90
-dependencies:
-- name: helm-lib
-  version: 1.5.28
-description: Micro Focus Network Operations Management - Metric Transformation
-name: nommetricstransform
-version: 1.4.90

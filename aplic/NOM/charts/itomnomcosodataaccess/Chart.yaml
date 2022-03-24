@@ -1,8 +1,0 @@
-apiVersion: v2
-appVersion: 1.4.46
-dependencies:
-- name: helm-lib
-  version: 1.5.28
-description: Micro Focus Network Operations Management - COSO Data Access
-name: itomnomcosodataaccess
-version: 1.4.46

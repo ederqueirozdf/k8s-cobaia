@@ -1,4 +1,0 @@
-dependencies:
-  - name: helm-lib
-    version: 1.3.33
-    repository: https://svsartifactory.swinfra.net/artifactory/itom-helm-charts-stable

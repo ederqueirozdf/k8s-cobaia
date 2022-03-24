@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: taskcontroller-logback-cm
-data:
-  task-controller-logback.xml: |-
-    {{- (tpl (.Files.Get "conf/task-controller-logback.xml") . ) | nindent 8 }}

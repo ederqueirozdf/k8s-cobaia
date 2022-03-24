@@ -1,3 +1,0 @@
-{{- if and (not (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1")) .Values.global.prometheus.deployPrometheusConfig }}
-WARNING: OPTIC DL Metrics require the CDF Monitoring Framework. Please install the CDF Monitoring Framework and execute helm upgrade to ensure OPTIC DL Metrics are configured.
-{{ end }}

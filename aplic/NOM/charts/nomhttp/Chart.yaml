@@ -1,8 +1,0 @@
-apiVersion: v2
-appVersion: 1.0.55
-dependencies:
-- name: helm-lib
-  version: 1.5.25
-description: Micro Focus NOM HTTP Backend Service
-name: nomhttp
-version: 1.0.55

@@ -1,8 +1,0 @@
-apiVersion: v2
-appVersion: 3.6.3.125
-dependencies:
-- name: helm-lib
-  version: 1.5.20
-description: Micro Focus Zookeeper
-name: nomzk
-version: 1.0.48

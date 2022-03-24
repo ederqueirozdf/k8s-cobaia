@@ -1,8 +1,0 @@
-apiVersion: v2
-appVersion: 1.6.98
-dependencies:
-- name: helm-lib
-  version: 1.5.28
-description: Vault Helm chart
-name: itom-vault
-version: 1.6.98
