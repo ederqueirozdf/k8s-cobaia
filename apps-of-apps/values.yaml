@@ -24,7 +24,7 @@ argocd:
         # - key: chave
         #   value: valor
       spec:
-        project: k8s-cobaia
+        project: do-sfo3-k8s-lab
         source:
           path: aplic/guestbook
           repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
