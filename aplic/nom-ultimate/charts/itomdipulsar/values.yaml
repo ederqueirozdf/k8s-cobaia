@@ -450,7 +450,7 @@ zookeeper:
       name: zookeeper-data
       size: 2Gi
       local_storage: true
-      storageClassName: "fast-disks"
+      storageClassName: "do-block-storage"
       ## If the storage class is left undefined when using persistence
       ## the default storage class for the cluster will be used.
       ##
@@ -619,7 +619,7 @@ bookkeeper:
       name: ledgers
       size: 1Gi
       local_storage: true
-      storageClassName: "fast-disks"
+      storageClassName: "do-block-storage"
       ## If the storage class is left undefined when using persistence
       ## the default storage class for the cluster will be used.
       ##

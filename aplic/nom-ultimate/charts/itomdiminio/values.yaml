@@ -80,7 +80,7 @@ diminio:
     ##
     ## Storage class of PV to bind. By default it looks for standard storage class.
     ## If the PV uses a different storage class, specify that here.
-    storageClassName: minio-data
+    storageClassName: do-block-storage
     enabled: true
     VolumeName: "98Gi"
     accessMode: ReadWriteOnce
