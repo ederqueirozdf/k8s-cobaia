@@ -79,7 +79,7 @@ global:
     fsGroup: "1999"
 
   docker:
-    registry: docker.io/v1
+    registry: docker.io
     orgName: hpeswitom
     imagePullSecret: ""
     imagePullPolicy: IfNotPresent
