@@ -6,7 +6,7 @@ persistence:
   # NOM creates 4 or 5 PVCs using the defaultStorageClass.  This is one mechanism
   # for changing the storageClass, the other is global.persistence.storageClasses.*
   # found below.
-  defaultStorageClass:
+  defaultStorageClass: do-block-storage
 
 global:
   nom:
