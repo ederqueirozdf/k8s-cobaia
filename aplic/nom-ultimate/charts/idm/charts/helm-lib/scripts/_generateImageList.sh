@@ -13,7 +13,7 @@ if [ ! -d $CHART -o ! -f $CHART/Chart.yaml ] ; then
     exit 1
 fi
 
-REGISTRY="docker.io/"
+REGISTRY="docker.io/v1/"
 ORGNAME="${ORGNAME:-hpeswitom}"
 DESC=`grep -Po '^description:.*' $CHART/Chart.yaml | cut -f2- -d: | sed -e 's/^[[:space:]]*//' | sed -e 's/[[:space:]]*$//'`
 

@@ -49,7 +49,7 @@ global:
 
   docker:
     # set the global.docker.registry and orgName to your internal Docker registry/org
-    registry: docker.io
+    registry: docker.io/v1
     orgName: hpeswitom
     imagePullSecret: ""
     imagePullPolicy: IfNotPresent
