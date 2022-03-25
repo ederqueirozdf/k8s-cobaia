@@ -8,7 +8,7 @@ backwardsCompatServiceName: false
 
 global:
   docker:
-    registry: localhost:5000
+    registry: docker.io
     orgName: hpeswitom
     imagePullSecret: ""
     imagePullPolicy: IfNotPresent

@@ -46,7 +46,7 @@ global:
     scrapeCertSecretName: "itom-di-prometheus-scrape-cert"
 
   docker:
-    registry: localhost:5000
+    registry: docker.io
     orgName: hpeswitom
     imagePullSecret: ""
     imagePullPolicy: IfNotPresent

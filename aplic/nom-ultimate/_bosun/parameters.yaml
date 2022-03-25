@@ -311,7 +311,7 @@ parameters:
   type:
     key: STRING
     isRequired: false
-    defaultValue: localhost:5000
+    defaultValue: docker.io
   group: docker-settings
   helmValue:
     key: global.docker.registry
