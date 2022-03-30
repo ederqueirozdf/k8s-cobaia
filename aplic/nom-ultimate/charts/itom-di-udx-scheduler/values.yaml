@@ -48,7 +48,7 @@ global:
   docker:
     registry: docker.io
     orgName: hpeswitom
-    imagePullSecret: ""
+    imagePullSecret: "regcred"
     imagePullPolicy: IfNotPresent
   securityContext:
     user: 1999

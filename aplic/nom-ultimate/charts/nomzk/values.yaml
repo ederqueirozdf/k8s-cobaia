@@ -20,7 +20,7 @@ global:
   docker:
     registry: docker.io
     orgName: hpeswitom
-    imagePullSecret: ""
+    imagePullSecret: "regcred"
     imagePullPolicy: IfNotPresent
 
   # if isDemo is true, this will allow use of ephemeral storage and other POC concepts

@@ -32,7 +32,7 @@ global:
     # set the global.docker.registry and orgName to your internal Docker registry/org
     registry: docker.io
     orgName: hpeswitom
-    imagePullSecret: ""
+    imagePullSecret: "regcred"
     imagePullPolicy: IfNotPresent
 
   #Service chart should inject the FQDN into ingress.spec.rules[].host depending upon the parameter “.global.setFqdnInIngress”.

@@ -51,7 +51,7 @@ global:
     # set the global.docker.registry and orgName to your internal Docker registry/org
     registry: docker.io
     orgName: hpeswitom
-    imagePullSecret: ""
+    imagePullSecret: "regcred"
     imagePullPolicy: IfNotPresent
 
   securityContext:

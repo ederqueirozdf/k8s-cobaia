@@ -5,7 +5,7 @@ global:
     # set the global.docker.registry and orgName to your internal Docker registry/org
     registry: docker.io
     orgName: hpeswitom
-    imagePullSecret: ""
+    imagePullSecret: "regcred"
     imagePullPolicy: IfNotPresent
     image: itom-data-ingestion-minio
     imageTag: 2.5.0-21
@@ -131,7 +131,7 @@ image:
   pullPolicy: IfNotPresent
   registry: docker.io
   orgName: hpeswitom
-  imagePullSecret: ""
+  imagePullSecret: "regcred"
   imagePullPolicy: IfNotPresent
 
 
