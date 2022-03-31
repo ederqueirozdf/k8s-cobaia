@@ -121,7 +121,7 @@ You can define your local Kubernetes image registry:
 
 | Parameter                        | Description                | Default value    |
 | -------------------------------- | -------------------------- | ---------------- |
-| `global.docker.registry`         | Docker registry            | "docker.io" |
+| `global.docker.registry`         | Docker registry            | "docker.registry.net" |
 | `global.docker.orgName`          | Docker orgName             | "hpeswitom"      |
 | `global.docker.imagePullPolicy`  | Docker image pull policy   | "IfNotPresent"   |
 | `global.docker.imagePullSecret`  | Docker image pull secret   | ""               |

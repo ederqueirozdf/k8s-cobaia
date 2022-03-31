@@ -97,7 +97,7 @@ global:
 
   docker:
     # set the global.docker.registry and orgName to your internal Docker registry/org
-    registry: docker.io
+    registry: docker.registry.net
     orgName: hpeswitom
     imagePullSecret: "regcred"
     imagePullPolicy: IfNotPresent
@@ -110,12 +110,12 @@ global:
 
   # global image definitions
   vaultRenew:
-    #registry: docker.io
+    #registry: docker.registry.net
     #orgName: hpeswitom
     image: kubernetes-vault-renew
     imageTag: 0.10.0-0019
   vaultInit:
-    #registry: docker.io
+    #registry: docker.registry.net
     #orgName: hpeswitom
     image: kubernetes-vault-init
     imageTag: 0.10.0-0019
