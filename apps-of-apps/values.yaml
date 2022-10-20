@@ -1,5 +1,5 @@
 clusterK8s:
-  name: "do-sfo3-k8s-lab"
+  name: "do-tor1-k8s-lab-do"
   server: https://kubernetes.default.svc
   source: https://github.com/ederqueirozdf/k8s-cobaia.git
   extraApi: 
@@ -10,9 +10,9 @@ argocd:
   namespace: argocd
   disablePrune: false
 
-# #####################################################################
+# ########
 # APPS
-# #####################################################################
+# ########
 
   apps:
     - name: "guestbook"
@@ -24,7 +24,7 @@ argocd:
         # - key: chave
         #   value: valor
       spec:
-        project: do-sfo3-k8s-lab
+        project: default
         source:
           path: aplic/guestbook
           repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
