@@ -22,7 +22,7 @@ image: gitlab/gitlab-ce:9.4.1-ce.0
 ## For minikube, set this to NodePort, elsewhere use LoadBalancer
 ## ref: http://kubernetes.io/docs/user-guide/services/#publishing-services---service-types
 ##
-serviceType: clusterIP
+serviceType: ClusterIP
 
 ## Ingress configuration options
 ##
@@ -30,7 +30,7 @@ ingress:
   annotations:
       # kubernetes.io/ingress.class: nginx
       # kubernetes.io/tls-acme: "true"
-  enabled: false
+  enabled: true
   tls:
       # - secretName: gitlab.cluster.local
       #   hosts:
