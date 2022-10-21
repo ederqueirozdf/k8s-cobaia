@@ -466,16 +466,16 @@ affinity: {}
 ## @param nodeSelector Node labels for pod assignment. Evaluated as a template.
 ## ref: https://kubernetes.io/docs/user-guide/node-selection/
 ##
-nodeSelector:
-  servico: minio
+nodeSelector: {}
+  # servico: minio
 ## @param tolerations Tolerations for pod assignment. Evaluated as a template.
 ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
 ##
-tolerations:
-  - key: "servico"
-    operator: "Equal"
-    value: "minio"
-    effect: "NoSchedule"
+tolerations: {}
+  # - key: "servico"
+  #   operator: "Equal"
+  #   value: "minio"
+  #   effect: "NoSchedule"
 ## @param topologySpreadConstraints Topology Spread Constraints for MinIO&reg; pods assignment spread across your cluster among failure-domains
 ## Ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/#spread-constraints-for-pods
 ##
@@ -495,13 +495,13 @@ priorityClassName: ""
 resources:
   ## Example:
   limits:
-     cpu: 400m
-     memory: 600Mi
+     cpu: 600m
+     memory: 1024Mi
   # limits: {}
   ## Examples:
   requests:
      cpu: 300m
-     memory: 256Mi
+     memory: 512Mi
   # requests: {}
 ## Configure extra options for liveness probe
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes
