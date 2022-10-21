@@ -490,12 +490,12 @@ priorityClassName: ""
 resources:
   ## Example:
   limits:
-     cpu: 1024m
+     cpu: 600m
      memory: 1024Mi
   # limits: {}
   ## Examples:
   requests:
-     cpu: 512m
+     cpu: 300m
      memory: 256Mi
   # requests: {}
 ## Configure extra options for liveness probe
