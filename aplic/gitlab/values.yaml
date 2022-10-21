@@ -1,0 +1,30 @@
+# Default values for gitlab-chart.
+# This is a YAML-formatted file.
+
+global:
+  edition: ce
+  hosts:
+    domain: gitlab.infra7.online
+    https: true
+  communityImages:
+    # Default repositories used to pull Gitlab Community Edition images.
+    # See the image.repository and workhorse.repository template helpers.
+    migrations:
+      repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-toolbox-ce
+    sidekiq:
+      repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-sidekiq-ce
+    toolbox:
+      repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-toolbox-ce
+    webservice:
+      repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-webservice-ce
+    workhorse:
+      repository: registry.gitlab.com/gitlab-org/build/cng/gitlab-workhorse-ce
+  # This exists to support template handling
+  psql:
+    knownDecompositions:
+      - main
+      - ci
+
+gitlab-runner:
+  enabled: false
+
