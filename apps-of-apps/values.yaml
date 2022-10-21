@@ -26,7 +26,7 @@ argocd:
       spec:
         project: default
         source:
-          path: aplic/gitlab
+          path: aplic/gitlab-ce
           repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
           targetRevision: HEAD
           helm:
