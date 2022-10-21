@@ -490,13 +490,13 @@ priorityClassName: ""
 resources:
   ## Example:
   limits:
-     cpu: 400m
-     memory: 400Mi
+     cpu: 512m
+     memory: 512Mi
   # limits: {}
   ## Examples:
   requests:
-     cpu: 150m
-     memory: 250Mi
+     cpu: 256m
+     memory: 256Mi
   # requests: {}
 ## Configure extra options for liveness probe
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes
