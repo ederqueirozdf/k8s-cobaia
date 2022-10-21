@@ -200,7 +200,7 @@ statefulset:
   podManagementPolicy: Parallel
   ## @param statefulset.replicaCount Number of pods per zone (only for MinIO&reg; distributed mode). Should be even and `>= 4`
   ##
-  replicaCount: 4
+  replicaCount: 1
   ## @param statefulset.zones Number of zones (only for MinIO&reg; distributed mode)
   ##
   zones: 1
@@ -490,12 +490,12 @@ priorityClassName: ""
 resources:
   ## Example:
   limits:
-     cpu: 400m
+     cpu: 200m
      memory: 256Mi
   # limits: {}
   ## Examples:
   requests:
-     cpu: 250m
+     cpu: 100m
      memory: 128Mi
   # requests: {}
 ## Configure extra options for liveness probe
