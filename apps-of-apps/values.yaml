@@ -33,7 +33,7 @@ argocd:
             valueFiles:
               - values.yaml            
         destination:
-          namespace: cobaia-guestbook
+          namespace: guestbook
           server: https://kubernetes.default.svc
         syncPolicy:
           automated:
