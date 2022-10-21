@@ -31,7 +31,6 @@ argocd:
           targetRevision: HEAD
           helm:
             valueFiles:
-              - namespace.yaml            
               - values.yaml
         destination:
           namespace: minio
