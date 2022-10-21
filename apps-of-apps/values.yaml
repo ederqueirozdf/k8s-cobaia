@@ -15,30 +15,6 @@ argocd:
 # ########
 
   apps:
-    - name: "guestbook"
-      finalizers: []
-      labels: []
-        # - key: chave
-        #   value: valor
-      annotations: []
-        # - key: chave
-        #   value: valor
-      spec:
-        project: default
-        source:
-          path: aplic/guestbook
-          repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
-          targetRevision: HEAD
-          helm:
-            valueFiles:
-              - values.yaml            
-        destination:
-          namespace: guestbook
-          server: https://kubernetes.default.svc
-        syncPolicy:
-          automated:
-            prune: true
-            selfHeal: true
     - name: "minio"
       finalizers: []
       labels: []
