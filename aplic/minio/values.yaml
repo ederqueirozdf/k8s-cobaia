@@ -29,7 +29,7 @@ mcImage:
   pullPolicy: IfNotPresent
 
 ## minio mode, i.e. standalone or distributed or gateway.
-mode: distributed ## other supported values are "standalone", "gateway"
+mode: standalone ## other supported values are "standalone", "gateway"
 
 ## Additional labels to include with deployment or statefulset
 additionalLabels: {}
@@ -58,7 +58,7 @@ minioAPIPort: "9000"
 
 ## Internal port number for MinIO Browser Console container
 ## Change consoleService.port to change external port number
-minioConsolePort: "9001"
+minioConsolePort: "80"
 
 ## Update strategy for Deployments
 DeploymentUpdate:
@@ -206,7 +206,7 @@ ingress:
 consoleService:
   type: ClusterIP
   clusterIP: ~
-  port: "9001"
+  port: "80"
   nodePort: 32001
 
 consoleIngress:
