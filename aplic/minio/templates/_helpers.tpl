@@ -30,6 +30,20 @@ Return the proper Docker Image Registry Secret Names
 {{- end -}}
 
 {{/*
+Returns the available value for certain key in an existing secret (if it exists),
+otherwise it generates a random value.
+*/}}
+{{- define "getValueFromSecret" }}
+{{- $len := (default 16 .Length) | int -}}
+{{- $obj := (lookup "v1" "Secret" .Namespace .Name).data -}}
+{{- if $obj }}
+{{- index $obj .Key | b64dec -}}
+{{- else -}}
+{{- randAlphaNum $len -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Get the user to use to access MinIO&reg;
 */}}
 {{- define "minio.secret.userValue" -}}
@@ -38,31 +52,30 @@ Get the user to use to access MinIO&reg;
         {{- if .Values.gateway.auth.azure.accessKey }}
             {{- .Values.gateway.auth.azure.accessKey -}}
         {{- else -}}
-            {{- randAlphaNum 10 -}}
+            {{- include "getValueFromSecret" (dict "Namespace" .Release.Namespace "Name" (include "common.names.fullname" .) "Length" 10 "Key" "root-user")  -}}
         {{- end -}}
     {{- else if eq .Values.gateway.type "gcs" }}
         {{- if .Values.gateway.auth.gcs.accessKey }}
             {{- .Values.gateway.auth.gcs.accessKey -}}
         {{- else -}}
-            {{- randAlphaNum 10 -}}
+            {{- include "getValueFromSecret" (dict "Namespace" .Release.Namespace "Name" (include "common.names.fullname" .) "Length" 10 "Key" "root-user")  -}}
         {{- end -}}
     {{- else if eq .Values.gateway.type "nas" }}
         {{- if .Values.gateway.auth.nas.accessKey }}
             {{- .Values.gateway.auth.nas.accessKey -}}
         {{- else -}}
-            {{- randAlphaNum 10 -}}
+            {{- include "getValueFromSecret" (dict "Namespace" .Release.Namespace "Name" (include "common.names.fullname" .) "Length" 10 "Key" "root-user")  -}}
         {{- end -}}
-    {{- else if eq .Values.gateway.type "s3" }}
+    {{- else if and (eq .Values.gateway.type "s3") (not .Values.gateway.auth.s3.useIRSA ) }}
         {{- .Values.gateway.auth.s3.accessKey -}}
     {{- end -}}
 {{- else }}
-    {{- $accessKey := coalesce .Values.global.minio.accessKey .Values.accessKey.password -}}
-    {{- if $accessKey }}
-        {{- $accessKey -}}
-    {{- else if (not .Values.accessKey.forcePassword) }}
-        {{- randAlphaNum 10 -}}
+    {{- if .Values.auth.rootUser }}
+        {{- .Values.auth.rootUser -}}
+    {{- else if (not .Values.auth.forcePassword) }}
+        {{- include "getValueFromSecret" (dict "Namespace" .Release.Namespace "Name" (include "common.names.fullname" .) "Length" 10 "Key" "root-user")  -}}
     {{- else -}}
-        {{ required "An Access Key is required!" .Values.accessKey.password }}
+        {{ required "A root username is required!" .Values.auth.rootUser }}
     {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -76,31 +89,30 @@ Get the password to use to access MinIO&reg;
         {{- if .Values.gateway.auth.azure.secretKey }}
             {{- .Values.gateway.auth.azure.secretKey -}}
         {{- else -}}
-            {{- randAlphaNum 40 -}}
+            {{- include "getValueFromSecret" (dict "Namespace" .Release.Namespace "Name" (include "common.names.fullname" .) "Length" 10 "Key" "root-password")  -}}
         {{- end -}}
     {{- else if eq .Values.gateway.type "gcs" }}
         {{- if .Values.gateway.auth.gcs.secretKey }}
             {{- .Values.gateway.auth.gcs.secretKey -}}
         {{- else -}}
-            {{- randAlphaNum 40 -}}
+            {{- include "getValueFromSecret" (dict "Namespace" .Release.Namespace "Name" (include "common.names.fullname" .) "Length" 10 "Key" "root-password")  -}}
         {{- end -}}
     {{- else if eq .Values.gateway.type "nas" }}
         {{- if .Values.gateway.auth.nas.secretKey }}
             {{- .Values.gateway.auth.nas.secretKey -}}
         {{- else -}}
-            {{- randAlphaNum 40 -}}
+            {{- include "getValueFromSecret" (dict "Namespace" .Release.Namespace "Name" (include "common.names.fullname" .) "Length" 10 "Key" "root-password")  -}}
         {{- end -}}
-    {{- else if eq .Values.gateway.type "s3" }}
+    {{- else if and (eq .Values.gateway.type "s3") (not .Values.gateway.auth.s3.useIRSA ) }}
         {{- .Values.gateway.auth.s3.secretKey -}}
     {{- end -}}
 {{- else }}
-    {{- $secretKey := coalesce .Values.global.minio.secretKey .Values.secretKey.password -}}
-    {{- if $secretKey }}
-        {{- $secretKey -}}
-    {{- else if (not .Values.secretKey.forcePassword) }}
-        {{- randAlphaNum 40 -}}
+    {{- if .Values.auth.rootPassword }}
+        {{- .Values.auth.rootPassword -}}
+    {{- else if (not .Values.auth.forcePassword) }}
+        {{- include "getValueFromSecret" (dict "Namespace" .Release.Namespace "Name" (include "common.names.fullname" .) "Length" 10 "Key" "root-password")  -}}
     {{- else -}}
-        {{ required "A Secret Key is required!" .Values.secretKey.password }}
+        {{ required "A root password is required!" .Values.auth.rootPassword }}
     {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -109,10 +121,8 @@ Get the password to use to access MinIO&reg;
 Get the credentials secret.
 */}}
 {{- define "minio.secretName" -}}
-{{- if .Values.global.minio.existingSecret }}
-    {{- printf "%s" .Values.global.minio.existingSecret -}}
-{{- else if .Values.existingSecret -}}
-    {{- printf "%s" .Values.existingSecret -}}
+{{- if .Values.auth.existingSecret -}}
+    {{- printf "%s" (tpl .Values.auth.existingSecret $) -}}
 {{- else -}}
     {{- printf "%s" (include "common.names.fullname" .) -}}
 {{- end -}}
@@ -122,8 +132,7 @@ Get the credentials secret.
 Return true if a secret object should be created
 */}}
 {{- define "minio.createSecret" -}}
-{{- if .Values.global.minio.existingSecret }}
-{{- else if .Values.existingSecret -}}
+{{- if .Values.auth.existingSecret -}}
 {{- else -}}
     {{- true -}}
 {{- end -}}
@@ -196,15 +205,15 @@ minio: mode
 {{- end -}}
 
 {{/*
-Validate values of MinIO&reg; - total number of drives should be multiple of 4
+Validate values of MinIO&reg; - total number of drives should be greater than 4
 */}}
 {{- define "minio.validateValues.totalDrives" -}}
 {{- $replicaCount := int .Values.statefulset.replicaCount }}
 {{- $drivesPerNode := int .Values.statefulset.drivesPerNode }}
 {{- $totalDrives := mul $replicaCount $drivesPerNode }}
-{{- if and (eq .Values.mode "distributed") (or (not (eq (mod $totalDrives 4) 0)) (lt $totalDrives 4)) -}}
+{{- if and (eq .Values.mode "distributed") (lt $totalDrives 4) -}}
 minio: total drives
-    The total number of drives should be multiple of 4 to guarantee erasure coding!
+    The total number of drives should be greater than 4 to guarantee erasure coding!
     Please set a combination of nodes, and drives per node that match this condition.
     For instance (--set statefulset.replicaCount=2 --set statefulset.drivesPerNode=2)
 {{- end -}}
@@ -214,7 +223,7 @@ minio: total drives
 Validate values of MinIO&reg; - TLS secret must provided if TLS is enabled
 */}}
 {{- define "minio.validateValues.tls" -}}
-{{- if and .Values.tls.enabled (not .Values.tls.secretName) (not .Values.tls.existingSecret) (not .Values.tls.autoGenerated) }}
+{{- if and .Values.tls.enabled (not .Values.tls.existingSecret) (not .Values.tls.autoGenerated) }}
 minio: tls.existingSecret, tls.autoGenerated
     In order to enable TLS, you also need to provide
     an existing secret containing the TLS certificates or
@@ -279,7 +288,7 @@ minio: persistence.accessModes
 Validate values of MinIO&reg; - when using MinIO&reg; as a S3 Gateway, the Access & Secret keys are required
 */}}
 {{- define "minio.validateValues.gateway.s3.credentials" -}}
-{{- if and .Values.gateway.enabled (eq .Values.gateway.type "s3") (or (empty .Values.gateway.auth.s3.accessKey) (empty .Values.gateway.auth.s3.secretKey)) }}
+{{- if and .Values.gateway.enabled (eq .Values.gateway.type "s3") (not .Values.gateway.auth.s3.useIRSA ) (or (empty .Values.gateway.auth.s3.accessKey) (empty .Values.gateway.auth.s3.secretKey)) }}
 minio: gateway.auth.s3
     The Access & Secret keys are required to use MinIO&reg; as a S3 Gateway.
     Please set valid keys (--set gateway.auth.s3.accessKey="xxxx",gateway.auth.s3.secretKey="yyyy")
@@ -290,9 +299,8 @@ minio: gateway.auth.s3
 Return the secret containing MinIO TLS certificates
 */}}
 {{- define "minio.tlsSecretName" -}}
-{{- $secretName := coalesce .Values.tls.existingSecret .Values.tls.secretName -}}
-{{- if $secretName -}}
-    {{- printf "%s" (tpl $secretName $) -}}
+{{- if .Values.tls.existingSecret -}}
+    {{- printf "%s" (tpl .Values.tls.existingSecret $) -}}
 {{- else -}}
     {{- printf "%s-crt" (include "common.names.fullname" .) -}}
 {{- end -}}
@@ -302,7 +310,7 @@ Return the secret containing MinIO TLS certificates
 Return true if a TLS secret object should be created
 */}}
 {{- define "minio.createTlsSecret" -}}
-{{- if and .Values.tls.enabled .Values.tls.autoGenerated (not .Values.tls.secretName) (not .Values.tls.existingSecret) }}
+{{- if and .Values.tls.enabled .Values.tls.autoGenerated (not .Values.tls.existingSecret) }}
     {{- true -}}
 {{- end -}}
 {{- end -}}

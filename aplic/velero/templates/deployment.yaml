@@ -6,6 +6,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "velero.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   {{- with .Values.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -21,6 +22,8 @@ metadata:
     {{- end }}
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/instance: {{ .Release.Name }}
@@ -57,6 +60,7 @@ spec:
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ include "velero.priorityClassName" . }}
       {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       containers:
         - name: velero
       {{- if .Values.image.digest }}
@@ -99,14 +103,26 @@ spec:
             {{- if .defaultVolumesToRestic }}
             - --default-volumes-to-restic
             {{- end }}
+            {{- with .defaultResticPruneFrequency }}
+            - --default-restic-prune-frequency={{ . }}
+            {{- end }}
             {{- with .clientQPS }}
             - --client-qps={{ . }}
             {{- end }}
             {{- with .clientBurst }}
             - --client-burst={{ . }}
             {{- end }}
+            {{- with .clientPageSize }}
+            - --client-page-size={{ . }}
+            {{- end }}
             {{- with .disableControllers }}
             - --disable-controllers={{ . }}
+            {{- end }}
+            {{- with .storeValidationFrequency }}
+            - --store-validation-frequency={{ . }}
+            {{- end }}
+            {{- with .garbageCollectionFrequency }}
+            - --garbage-collection-frequency={{ . }}
             {{- end }}
           {{- end }}
           {{- with .Values.resources }}
@@ -166,7 +182,7 @@ spec:
           {{- with .Values.configuration.extraEnvVars }}
           {{- range $key, $value := . }}
             - name: {{ default "none" $key }}
-              value: {{ default "none" $value }}
+              value: {{ default "none" $value | quote }}
           {{- end }}
           {{- end }}
           {{- with .Values.credentials.extraEnvVars }}
@@ -178,10 +194,17 @@ spec:
                   key: {{ default "none" $key }}
           {{- end }}
           {{- end }}
+          {{- if .Values.lifecycle }}
+          lifecycle: {{ toYaml .Values.lifecycle | nindent 12 }}
+          {{- end }}
       dnsPolicy: {{ .Values.dnsPolicy }}
 {{- if .Values.initContainers }}
       initContainers:
+        {{- if eq (typeOf .Values.initContainers) "string" }}
+        {{- tpl .Values.initContainers . | nindent 8 }}
+        {{- else }}
         {{- toYaml .Values.initContainers | nindent 8 }}
+        {{- end }}
 {{- end }}
       volumes:
         {{- if .Values.credentials.useSecret }}
@@ -206,6 +229,10 @@ spec:
     {{- end }}
     {{- with .Values.nodeSelector }}
       nodeSelector:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.dnsConfig }}
+      dnsConfig:
         {{- toYaml . | nindent 8 }}
     {{- end }}
     {{- with .Values.tolerations }}

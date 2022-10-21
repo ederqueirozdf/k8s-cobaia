@@ -1,4 +1,6 @@
 {{- if .Values.upgradeCRDs }}
+{{/* 'securityContext' got renamed to 'podSecurityContext', merge both dicts into one for backward compatibility */}}
+{{- $podSecurityContext := merge (.Values.podSecurityContext | default dict) (.Values.securityContext | default dict) -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -45,10 +47,15 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - /bin/sh
+          args:
             - -c
             - cp `which sh` /tmp && cp `which kubectl` /tmp
           {{- with .Values.kubectl.resources }}
           resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.kubectl.containerSecurityContext }}
+          securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
@@ -71,6 +78,10 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - mountPath: /tmp
               name: crds
@@ -78,6 +89,10 @@ spec:
         - name: crds
           emptyDir: {}
       restartPolicy: OnFailure
+      {{- with $podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

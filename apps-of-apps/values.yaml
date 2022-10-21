@@ -36,7 +36,27 @@ argocd:
           automated:
             prune: true
             selfHeal: true
-
+    - name: "minio"
+      finalizers: []
+      labels: []
+        # - key: chave
+        #   value: valor
+      annotations: []
+        # - key: chave
+        #   value: valor
+      spec:
+        project: default
+        source:
+          path: aplic/minio
+          repoURL: https://github.com/ederqueirozdf/k8s-cobaia.git
+          targetRevision: HEAD     
+        destination:
+          namespace: minio
+          server: https://kubernetes.default.svc
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
     # - name: "nom-ultimate"
     #   finalizers: []
     #   labels: []

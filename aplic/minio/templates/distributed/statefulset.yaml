@@ -3,6 +3,7 @@
 {{- $headlessService := printf "%s-headless" (include "common.names.fullname" .) | trunc 63 }}
 {{- $releaseNamespace := .Release.Namespace }}
 {{- $clusterDomain := .Values.clusterDomain }}
+{{- $apiPort := toString .Values.containerPorts.api }}
 {{- $replicaCount := int .Values.statefulset.replicaCount }}
 {{- $zoneCount := int .Values.statefulset.zones }}
 {{- $drivesPerNode := int .Values.statefulset.drivesPerNode }}
@@ -11,7 +12,7 @@ apiVersion: {{ include "common.capabilities.statefulset.apiVersion" . }}
 kind: StatefulSet
 metadata:
   name: {{ $fullname }}
-  namespace: {{ $releaseNamespace  }}
+  namespace: {{ $releaseNamespace | quote  }}
   labels: {{- include "common.labels.standard" . | nindent 4 }}
     {{- if .Values.commonLabels }}
     {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
@@ -25,11 +26,9 @@ spec:
   serviceName: {{ $headlessService }}
   replicas: {{ mul $zoneCount $replicaCount }}
   podManagementPolicy: {{ .Values.statefulset.podManagementPolicy }}
-  updateStrategy:
-    type: {{ .Values.statefulset.updateStrategy }}
-    {{- if (eq "Recreate" .Values.statefulset.updateStrategy) }}
-    rollingUpdate: null
-    {{- end }}
+  {{- if .Values.statefulset.updateStrategy }}
+  updateStrategy: {{- toYaml .Values.statefulset.updateStrategy | nindent 4 }}
+  {{- end }}
   template:
     metadata:
       labels: {{- include "common.labels.standard" . | nindent 8 }}
@@ -68,8 +67,17 @@ spec:
       {{- if .Values.tolerations }}
       tolerations: {{- include "common.tplvalues.render" (dict "value" .Values.tolerations "context" $) | nindent 8 }}
       {{- end }}
+      {{- if .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{- include "common.tplvalues.render" (dict "value" .Values.topologySpreadConstraints "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
       {{- if .Values.podSecurityContext.enabled }}
       securityContext: {{- omit .Values.podSecurityContext "enabled" | toYaml | nindent 8 }}
+      {{- end }}
+      {{- if .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       {{- end }}
       {{- if or .Values.initContainers (and .Values.volumePermissions.enabled .Values.persistence.enabled) }}
       initContainers:
@@ -130,32 +138,32 @@ spec:
                   {{- $endIndex := sub (add $factor $replicaCount) 1 }}
                   {{- $beginIndex := mul $i $replicaCount }}
                   {{- $bucket := ternary (printf "%s-{0...%d}" $mountPath (sub $drivesPerNode 1)) $mountPath (gt $drivesPerNode 1) }}
-                  {{- $clusters = append $clusters (printf "%s-{%d...%d}.%s.%s.svc.%s%s" $fullname $beginIndex $endIndex $headlessService $releaseNamespace $clusterDomain $bucket) }}
+                  {{- $clusters = append $clusters (printf "%s-{%d...%d}.%s.%s.svc.%s:%s%s" $fullname $beginIndex $endIndex $headlessService $releaseNamespace $clusterDomain $apiPort $bucket) }}
               {{- end }}
               value: {{ join "," $clusters | quote }}
             - name: MINIO_SCHEME
               value: {{ ternary "https" "http" .Values.tls.enabled | quote }}
             - name: MINIO_FORCE_NEW_KEYS
-              value: {{ ternary "yes" "no" .Values.forceNewKeys | quote }}
-            {{- if .Values.useCredentialsFile }}
-            - name: MINIO_ACCESS_KEY_FILE
-              value: "/opt/bitnami/minio/secrets/access-key"
+              value: {{ ternary "yes" "no" .Values.auth.forceNewKeys | quote }}
+            {{- if .Values.auth.useCredentialsFiles }}
+            - name: MINIO_ROOT_USER_FILE
+              value: "/opt/bitnami/minio/secrets/root-user"
             {{- else }}
-            - name: MINIO_ACCESS_KEY
+            - name: MINIO_ROOT_USER
               valueFrom:
                 secretKeyRef:
                   name: {{ include "minio.secretName" . }}
-                  key: access-key
+                  key: root-user
             {{- end }}
-            {{- if .Values.useCredentialsFile }}
-            - name: MINIO_SECRET_KEY_FILE
-              value: "/opt/bitnami/minio/secrets/secret-key"
+            {{- if .Values.auth.useCredentialsFiles }}
+            - name: MINIO_ROOT_PASSWORD_FILE
+              value: "/opt/bitnami/minio/secrets/root-password"
             {{- else }}
-            - name: MINIO_SECRET_KEY
+            - name: MINIO_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "minio.secretName" . }}
-                  key: secret-key
+                  key: root-password
             {{- end }}
             - name: MINIO_SKIP_CLIENT
               value: {{ ternary "yes" "no" (empty .Values.defaultBuckets) | quote }}
@@ -168,13 +176,13 @@ spec:
             - name: MINIO_PROMETHEUS_AUTH_TYPE
               value: {{ .Values.metrics.prometheusAuthType | quote }}
             {{- if .Values.tls.mountPath }}
-            - name: MINIO_CERTSDIR
+            - name: MINIO_CERTS_DIR
               value: {{ .Values.tls.mountPath | quote }}
             - name: MINIO_CONSOLE_PORT_NUMBER
               value: {{ .Values.containerPorts.console | quote }}
             {{- end }}
-            {{- if .Values.extraEnv }}
-            {{- include "common.tplvalues.render" (dict "value" .Values.extraEnv "context" $) | nindent 12 }}
+            {{- if .Values.extraEnvVars }}
+            {{- include "common.tplvalues.render" (dict "value" .Values.extraEnvVars "context" $) | nindent 12 }}
             {{- end }}
           envFrom:
             {{- if .Values.extraEnvVarsCM }}
@@ -192,7 +200,9 @@ spec:
             - name: minio-console
               containerPort: {{ .Values.containerPorts.console }}
               protocol: TCP
-          {{- if .Values.livenessProbe.enabled }}
+          {{- if .Values.customLivenessProbe }}
+          livenessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customLivenessProbe "context" $) | nindent 12 }}
+          {{- else if .Values.livenessProbe.enabled }}
           livenessProbe:
             httpGet:
               path: /minio/health/live
@@ -203,10 +213,10 @@ spec:
             timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
             successThreshold: {{ .Values.livenessProbe.successThreshold }}
             failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
-          {{- else if .Values.customLivenessProbe }}
-          livenessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customLivenessProbe "context" $) | nindent 12 }}
           {{- end }}
-          {{- if .Values.readinessProbe.enabled }}
+          {{- if .Values.customReadinessProbe }}
+          readinessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customReadinessProbe "context" $) | nindent 12 }}
+          {{- else if .Values.readinessProbe.enabled }}
           readinessProbe:
             tcpSocket:
               port: minio-api
@@ -215,10 +225,10 @@ spec:
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
             successThreshold: {{ .Values.readinessProbe.successThreshold }}
             failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
-          {{- else if .Values.customReadinessProbe }}
-          readinessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customReadinessProbe "context" $) | nindent 12 }}
           {{- end }}
-          {{- if .Values.startupProbe.enabled }}
+          {{- if .Values.customStartupProbe }}
+          startupProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customStartupProbe "context" $) | nindent 12 }}
+          {{- else if .Values.startupProbe.enabled }}
           startupProbe:
             tcpSocket:
               port: minio-api
@@ -227,14 +237,15 @@ spec:
             timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
             successThreshold: {{ .Values.startupProbe.successThreshold }}
             failureThreshold: {{ .Values.startupProbe.failureThreshold }}
-          {{- else if .Values.customStartupProbe }}
-          startupProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customStartupProbe "context" $) | nindent 12 }}
           {{- end }}
           {{- if .Values.resources }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
           {{- end }}
+          {{- if .Values.lifecycleHooks }}
+          lifecycle: {{- include "common.tplvalues.render" (dict "value" .Values.lifecycleHooks "context" $) | nindent 12 }}
+          {{- end }}
           volumeMounts:
-            {{- if .Values.useCredentialsFile }}
+            {{- if .Values.auth.useCredentialsFiles }}
             - name: minio-credentials
               mountPath: /opt/bitnami/minio/secrets/
             {{- end }}
@@ -258,7 +269,7 @@ spec:
         {{- include "common.tplvalues.render" (dict "value" .Values.sidecars "context" $) | nindent 8 }}
         {{- end }}
       volumes:
-        {{- if .Values.useCredentialsFile }}
+        {{- if .Values.auth.useCredentialsFiles }}
         - name: minio-credentials
           secret:
             secretName: {{ include "minio.secretName" . }}
