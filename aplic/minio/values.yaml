@@ -53,9 +53,9 @@ extraDeploy: []
 ## @param image.debug Specify if debug logs should be enabled
 ##
 image:
-  registry: docker.io
-  repository: bitnami/minio
-  tag: 2022.10.20-debian-11-r0
+  registry: quay.io
+  repository: minio/minio
+  tag: latest
   digest: ""
   ## Specify a imagePullPolicy
   ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
