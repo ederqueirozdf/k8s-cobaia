@@ -30,7 +30,7 @@ ingress:
   annotations:
       # kubernetes.io/ingress.class: nginx
       # kubernetes.io/tls-acme: "true"
-  enabled: true
+  enabled: false
   tls:
       # - secretName: gitlab.cluster.local
       #   hosts:
