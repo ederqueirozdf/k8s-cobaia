@@ -206,8 +206,8 @@ ingress:
 consoleService:
   type: ClusterIP
   clusterIP: ~
-  port: "9001"
-  nodePort: 32001
+  port: 9001
+  nodePort: ""
 
 consoleIngress:
   enabled: false
