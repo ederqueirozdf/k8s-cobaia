@@ -210,13 +210,13 @@ consoleService:
   nodePort: ""
 
 consoleIngress:
-  enabled: false
+  enabled: true
   # ingressClassName: ""
   labels: {}
     # node-role.kubernetes.io/ingress: platform
 
-  annotations: {}
-    # kubernetes.io/ingress.class: nginx
+  annotations:
+    kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
     # kubernetes.io/ingress.allow-http: "false"
     # kubernetes.io/ingress.global-static-ip-name: ""
@@ -225,7 +225,7 @@ consoleIngress:
     # nginx.ingress.kubernetes.io/whitelist-source-range: 0.0.0.0/0
   path: /
   hosts:
-    - console.minio-example.local
+    - console.infra7.online
   tls: []
   #  - secretName: chart-example-tls
   #    hosts:
