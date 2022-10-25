@@ -231,24 +231,24 @@ configuration:
     name:
     # provider is the name for the backup storage location provider. If omitted
     # `configuration.provider` will be used instead.
-    provider:
+    provider: aws
     # bucket is the name of the bucket to store backups in. Required.
-    bucket:
+    bucket: velero
     # caCert defines a base64 encoded CA bundle to use when verifying TLS connections to the provider. Optional.
     caCert:
     # prefix is the directory under which all Velero data should be stored within the bucket. Optional.
-    prefix:
+    prefix: k8s-lab-velero
     # default indicates this location is the default backup storage location. Optional.
-    default:
+    default: true
     # accessMode determines if velero can write to this backup storage location. Optional.
     # default to ReadWrite, ReadOnly is used during migrations and restores.
     accessMode: ReadWrite
     # Additional provider-specific configuration. See link above
     # for details of required/optional fields for your provider.
-    config: {}
-    #  region:
-    #  s3ForcePathStyle:
-    #  s3Url:
+    config:
+     region: "lab"
+     s3ForcePathStyle: "true"
+     s3Url: "http://minio.infra7.online"
     #  kmsKeyId:
     #  resourceGroup:
     #  The ID of the subscription containing the storage account, if different from the cluster’s subscription. (Azure only)
@@ -314,13 +314,13 @@ configuration:
   features:
 
   # Set log-level for Velero pod. Default: info. Other options: debug, warning, error, fatal, panic.
-  logLevel:
+  logLevel: debug
 
   # Set log-format for Velero pod. Default: text. Other option: json.
   logFormat:
 
   # Set true for backup all pod volumes without having to apply annotation on the pod when used restic Default: false. Other option: false.
-  defaultVolumesToRestic:
+  defaultVolumesToRestic: true
 
   # How often 'restic prune' is run for restic repositories by default. Default: 168h. Optional.
   defaultResticPruneFrequency:
@@ -377,7 +377,10 @@ credentials:
   #    aws_access_key_id=<REDACTED>
   #    aws_secret_access_key=<REDACTED>
   # additional key/value pairs to be used as environment variables such as "DIGITALOCEAN_TOKEN: <your-key>". Values will be stored in the secret.
-  extraEnvVars: {}
+  extraEnvVars:
+    AWS_ACCESS_KEY_ID: "hPGVQgyRIxWLSglV"
+    AWS_SECRET_ACCESS_KEY: "T1TwApnY0SkQDi8k5tjPhxdt4sGXWo1a"
+    AWS_DEFAULT_REGION: "lab"   
   # Name of a pre-existing secret (if any) in the Velero namespace
   # that will be used to load environment variables into velero and restic.
   # Secret should be in format - https://kubernetes.io/docs/concepts/configuration/secret/#use-case-as-container-environment-variables
@@ -471,8 +474,17 @@ restic:
 #       ttl: "240h"
 #       includedNamespaces:
 #       - foo
-schedules: {}
-
+schedules:
+  backup-12h:
+    schedule: "@every 12h"
+    template:
+      defaultVolumesToRestic: false
+      includeClusterResources: true
+      includedNamespaces:
+      - '*'
+      includedResources:
+      - '*'
+      ttl: "24h"
 # Velero ConfigMaps.
 # Eg:
 # configMaps:
