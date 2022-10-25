@@ -58,7 +58,7 @@ minioAPIPort: "9000"
 
 ## Internal port number for MinIO Browser Console container
 ## Change consoleService.port to change external port number
-minioConsolePort: "80"
+minioConsolePort: "9001"
 
 ## Update strategy for Deployments
 DeploymentUpdate:
@@ -206,7 +206,7 @@ ingress:
 consoleService:
   type: ClusterIP
   clusterIP: ~
-  port: "80"
+  port: "9001"
   nodePort: 32001
 
 consoleIngress:
