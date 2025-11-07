@@ -3,6 +3,6 @@ kind: Namespace
 metadata:
   labels:
     argocd.argoproj.io/managed-by: psc-argocd-infra-util
-  name: {{ include "nodejs-example.fullname" . }}
+  name: {{ include "nodejs-example.fullname" . }}-util
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
