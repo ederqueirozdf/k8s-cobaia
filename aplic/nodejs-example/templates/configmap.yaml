@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.app.name }}-code
+data:
+  server.js: |
+    const http = require('http');
+    const port = process.env.PORT || 8080;
+    const msg = process.env.MESSAGE || 'Hello from Node.js on OpenShift!';
+    const server = http.createServer((req, res) => {
+      res.end(msg);
+    });
+    server.listen(port, () => console.log(`Listening on ${port}`));
