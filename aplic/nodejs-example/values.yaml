@@ -14,7 +14,10 @@ app:
       value: "production"
 
 command: ["node"]
-args: ["-e", "require('http').createServer((req, res) => res.end('Hello OpenShift!')).listen(process.env.PORT)"]
+args: ["/app/server.js"]
+volumeMounts:
+  - name: app-code
+    mountPath: /app
 
 service:
   type: ClusterIP
