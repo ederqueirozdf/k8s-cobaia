@@ -1,0 +1,25 @@
+replicaCount: 1
+
+image:
+  repository: registry.access.redhat.com/ubi8/nodejs-18
+  pullPolicy: IfNotPresent
+
+app:
+  name: nodejs-example
+  port: 8080
+  env:
+    - name: PORT
+      value: "8080"
+    - name: NODE_ENV
+      value: "production"
+
+command: ["node"]
+args: ["-e", "require('http').createServer((req, res) => res.end('Hello OpenShift!')).listen(process.env.PORT)"]
+
+service:
+  type: ClusterIP
+  port: 80
+
+route:
+  enabled: true
+  tlsTermination: edge
