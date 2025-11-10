@@ -13,12 +13,6 @@ app:
     - name: NODE_ENV
       value: "production"
 
-command: ["node"]
-args: ["/app/server.js"]
-volumeMounts:
-  - name: app-code
-    mountPath: /app
-
 service:
   type: ClusterIP
   port: 80
