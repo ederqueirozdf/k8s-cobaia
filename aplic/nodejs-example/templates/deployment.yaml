@@ -14,10 +14,6 @@ spec:
       labels:
         app: {{ .Values.app.name }}
     spec:
-      volumes:
-        - name: app-code
-          configMap:
-            name: {{ .Values.app.name }}-code    
       containers:
         - name: {{ .Values.app.name }}
           image: "{{ .Values.image.repository }}"
@@ -29,6 +25,12 @@ spec:
             - name: {{ .name }}
               value: {{ .value | quote }}
             {{- end }}
-          command: {{ .Values.command }}
-          args: {{ .Values.args }}
-          
+          command: ["node"]
+          args: ["/app/server.js"]
+          volumeMounts:
+            - name: app-code
+              mountPath: /app
+      volumes:
+        - name: app-code
+          configMap:
+            name: {{ .Values.app.name }}-code
