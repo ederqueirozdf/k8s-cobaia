@@ -18,5 +18,5 @@ service:
   port: 80
 
 route:
-  enabled: true
+  enabled: false
   tlsTermination: edge
